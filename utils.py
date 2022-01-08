@@ -14,13 +14,20 @@ import pandas as pd
 import sentencepiece as spm
 import xml.etree.ElementTree as ET
 
+import langid
+from langid.langid import LanguageIdentifier, model
+
 from typing import List, Iterable
 from collections import Counter
 from unicodedata import normalize
 from IPython.display import display
 
+identifier = LanguageIdentifier.from_modelstring(model, norm_probs=True)
+
 SRC_LANGUAGE = 'es'
 TGT_LANGUAGE = 'ro'
+
+USE_LANGID = True
 
 PATH_TO_DATA       = 'data/'
 PATH_TO_SOURCE_1   = os.path.join(PATH_TO_DATA, 'source-1')

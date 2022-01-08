@@ -14,9 +14,13 @@ class Languages:
         assert key in self.dictionary.keys(), "Only two languages"
         self.dictionary[key].extend(sentences)
 
-    def preprocessing(self, path_to_output, data_type: str = 'train'):
-        input_language_file  = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.input_language}'), 'w')
-        target_language_file = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.target_language}'), 'w')        
+    def preprocessing(self, path_to_output, data_type: str = 'train', langid: bool = False):
+        if not langid:
+            input_language_file  = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.input_language}'), 'w')
+            target_language_file = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.target_language}'), 'w')
+        else:
+            input_language_file  = open(os.path.join(path_to_output, f'cleaned_langid_{data_type}.{self.input_language}'), 'w')
+            target_language_file = open(os.path.join(path_to_output, f'cleaned_langid_{data_type}.{self.target_language}'), 'w')       
 
         for step, (input_sentence, target_sentence) in enumerate(zip(self.dictionary[self.input_language], \
                                                                      self.dictionary[self.target_language])): 
@@ -25,30 +29,48 @@ class Languages:
                 print(f"[STEP]: {step}/{len(self.dictionary[self.input_language])}")
 
             try:
-                cleaned_input_sentence  = Languages.text_cleaning(input_sentence)
-                cleaned_target_sentence = Languages.text_cleaning(target_sentence)
+                (cleaned_input_sentence, cleaned_target_sentence)  = Languages.text_cleaning((input_sentence, target_sentence), use_langid=langid)
+                # cleaned_target_sentence = Languages.text_cleaning(target_sentence)
                 input_language_file.write(cleaned_input_sentence + '\n')
                 target_language_file.write(cleaned_target_sentence + '\n')
             except:
                 print(f"[REMOVED]: [{input_sentence}] -> [{target_sentence}]")
 
+            # if step == 100:
+            #     break
+
         input_language_file.close()
         target_language_file.close()
 
-    def text_cleaning(sentence):
+    def text_cleaning(pair, use_langid):
+        input_sentence = pair[0]
+        target_sentence = pair[1]
+
+        if use_langid:
+            # remove pairs for which the ro sentence is not actually in ro
+            langid_result = identifier.classify(target_sentence)
+            lang_pred = langid_result[0]
+            # acc = langid_result[1]
+
+            if lang_pred != 'ro':
+                raise Exception('RO is not the language for this sentence')
+
+
         # table    = str.maketrans('', '', string.punctuation)
         # re_print = re.compile('[^%s]' % re.escape(string.printable))
         
         # sentence = normalize('NFD', sentence).encode('ascii', 'ignore')
         # sentence = sentence.decode('UTF-8')
         # sentence = sentence.split()
+
+        # lowercase
         # sentence = [word.lower() for word in sentence]
         # sentence = [word.translate(table) for word in sentence]
         # sentence = [re_print.sub('', w) for w in sentence]
         # sentence = [word for word in sentence if word.isalpha()]
         # sentence = ' '.join(sentence)
 
-        return sentence
+        return (input_sentence, target_sentence)
 
 def read_source_one(path_to_source: str, languages: Languages) -> Languages:
     for language in [SRC_LANGUAGE, TGT_LANGUAGE]:
@@ -121,7 +143,8 @@ if __name__ == '__main__':
 
         train_languages.preprocessing(
             path_to_output = 'data/cleaned/',
-            data_type      = 'train'
+            data_type      = 'train',
+            langid         = USE_LANGID
         )
 
     if 1: 
@@ -134,6 +157,7 @@ if __name__ == '__main__':
 
         dev_languages.preprocessing(
             path_to_output = 'data/cleaned/',
-            data_type      = 'valid'
+            data_type      = 'valid',
+            langid         = USE_LANGID
         )
 
