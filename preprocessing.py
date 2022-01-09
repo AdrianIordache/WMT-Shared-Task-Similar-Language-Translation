@@ -1,9 +1,10 @@
 from utils import *
 
 class Languages:
-    def __init__(self, input_language: str = 'es', target_language = 'ca'):
-        self.input_language  = input_language
-        self.target_language = target_language
+    def __init__(self, input_language: str = 'es', target_language: str = 'ca', preprocessing_types: List[str] = []):
+        self.input_language      = input_language
+        self.target_language     = target_language
+        self.preprocessing_types = preprocessing_types
 
         self.dictionary = {
             input_language:  [],
@@ -14,47 +15,49 @@ class Languages:
         assert key in self.dictionary.keys(), "Only two languages"
         self.dictionary[key].extend(sentences)
 
-    def preprocessing(self, path_to_output, data_type: str = 'train', langid: bool = False):
-        if not langid:
-            input_language_file  = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.input_language}'), 'w')
-            target_language_file = open(os.path.join(path_to_output, f'cleaned_{data_type}.{self.target_language}'), 'w')
-        else:
-            input_language_file  = open(os.path.join(path_to_output, f'cleaned_langid_{data_type}.{self.input_language}'), 'w')
-            target_language_file = open(os.path.join(path_to_output, f'cleaned_langid_{data_type}.{self.target_language}'), 'w')       
+    def preprocessing(self, path_to_output: str, data_type: str = 'train', data_version: int = 0, verbose: bool = False):
+        path_to_folder = os.path.join(path_to_output, f"version-{data_version}")
+        if os.path.exists(path_to_folder) == False: os.makedirs(path_to_folder)
 
-        for step, (input_sentence, target_sentence) in enumerate(zip(self.dictionary[self.input_language], \
+        input_language_file  = open(os.path.join(path_to_folder, f'cleaned_{data_type}.{self.input_language}'), 'w')
+        target_language_file = open(os.path.join(path_to_folder, f'cleaned_{data_type}.{self.target_language}'), 'w')
+
+        for step, paired_senteneces in enumerate(zip(self.dictionary[self.input_language], \
                                                                      self.dictionary[self.target_language])): 
 
             if step % 100000 == 0 or step == len(self.dictionary[self.input_language]): 
                 print(f"[STEP]: {step}/{len(self.dictionary[self.input_language])}")
 
             try:
-                (cleaned_input_sentence, cleaned_target_sentence)  = Languages.text_cleaning((input_sentence, target_sentence), use_langid=langid)
-                # cleaned_target_sentence = Languages.text_cleaning(target_sentence)
+                (cleaned_input_sentence, cleaned_target_sentence) = \
+                    Languages.text_cleaning(paired_senteneces, preprocessing = self.preprocessing_types)
+                
                 input_language_file.write(cleaned_input_sentence + '\n')
                 target_language_file.write(cleaned_target_sentence + '\n')
             except:
-                print(f"[REMOVED]: [{input_sentence}] -> [{target_sentence}]")
-
-            # if step == 100:
-            #     break
+                if verbose: print(f"[REMOVED]: [{input_sentence}] -> [{target_sentence}]")
+                continue
 
         input_language_file.close()
         target_language_file.close()
 
-    def text_cleaning(pair, use_langid):
-        input_sentence = pair[0]
-        target_sentence = pair[1]
-
-        if use_langid:
+    def text_cleaning(pair: Tuple[str, str], preprocessing: List[str]):
+        (input_sentence, target_sentence) = pair
+        
+        if 'langid' in preprocessing:
             # remove pairs for which the ro sentence is not actually in ro
-            langid_result = identifier.classify(target_sentence)
-            lang_pred = langid_result[0]
-            # acc = langid_result[1]
-
-            if lang_pred != 'ro':
+            predicted_language = identifier.classify(target_sentence)[0]
+            if predicted_language != TGT_LANGUAGE:
                 raise Exception('RO is not the language for this sentence')
 
+        if 'lowercase' in preprocessing:
+            input_sentence = input_sentence.split()
+            input_sentence = [word.lower() for word in input_sentence]
+            input_sentence = ' '.join(input_sentence)
+
+            target_sentence = target_sentence.split()
+            target_sentence = [word.lower() for word in target_sentence]
+            target_sentence = ' '.join(target_sentence)
 
         # table    = str.maketrans('', '', string.punctuation)
         # re_print = re.compile('[^%s]' % re.escape(string.printable))
@@ -113,8 +116,8 @@ def read_source_dev(path_to_source: str, languages: Languages) -> Languages:
         languages.append(language, lines)
 
     return languages
-
-def read_sources(sources: List[int], languages: Languages) -> Languages:
+    
+def read_sources(sources: List[int], stored: str = None, languages: Languages) -> Languages:
     if 1 in sources:    
         languages = read_source_one(PATH_TO_SOURCE_1, languages)
 
@@ -135,7 +138,7 @@ def read_sources(sources: List[int], languages: Languages) -> Languages:
 if __name__ == '__main__':
     if 1:
         print("Train Preprocessing...")
-        train_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE)
+        train_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, PREPROCESSING_METHODS)
         train_languages = read_sources(
             sources   = [1, 2, 3, 4], # train sources
             languages = train_languages
@@ -144,12 +147,12 @@ if __name__ == '__main__':
         train_languages.preprocessing(
             path_to_output = 'data/cleaned/',
             data_type      = 'train',
-            langid         = USE_LANGID
+            data_version   = DATASET_VERSION
         )
 
     if 1: 
         print("Valid Preprocessing...")
-        dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE)
+        dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, PREPROCESSING_METHODS)
         dev_languages = read_sources(
             sources   = ['dev'], # valid sources
             languages = dev_languages
@@ -158,6 +161,6 @@ if __name__ == '__main__':
         dev_languages.preprocessing(
             path_to_output = 'data/cleaned/',
             data_type      = 'valid',
-            langid         = USE_LANGID
+            data_version   = DATASET_VERSION
         )
 

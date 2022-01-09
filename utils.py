@@ -17,17 +17,13 @@ import xml.etree.ElementTree as ET
 import langid
 from langid.langid import LanguageIdentifier, model
 
-from typing import List, Iterable
+from typing import List, Iterable, Tuple
 from collections import Counter
 from unicodedata import normalize
 from IPython.display import display
 
-identifier = LanguageIdentifier.from_modelstring(model, norm_probs=True)
-
 SRC_LANGUAGE = 'es'
 TGT_LANGUAGE = 'ro'
-
-USE_LANGID = True
 
 PATH_TO_DATA       = 'data/'
 PATH_TO_SOURCE_1   = os.path.join(PATH_TO_DATA, 'source-1')
@@ -36,4 +32,6 @@ PATH_TO_SOURCE_3   = os.path.join(PATH_TO_DATA, 'source-3')
 PATH_TO_SOURCE_4   = os.path.join(PATH_TO_DATA, 'source-4')
 PATH_TO_SOURCE_DEV = os.path.join(PATH_TO_DATA, 'source-dev')
 
-
+identifier = LanguageIdentifier.from_modelstring(model, norm_probs = True)
+PREPROCESSING_METHODS = ['langid', 'lowercase']
+DATASET_VERSION = 2
