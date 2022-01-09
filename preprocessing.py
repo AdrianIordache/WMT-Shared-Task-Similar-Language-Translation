@@ -116,8 +116,8 @@ def read_source_dev(path_to_source: str, languages: Languages) -> Languages:
         languages.append(language, lines)
 
     return languages
-    
-def read_sources(sources: List[int], stored: str = None, languages: Languages) -> Languages:
+
+def read_sources(sources: List[int], languages: Languages) -> Languages:
     if 1 in sources:    
         languages = read_source_one(PATH_TO_SOURCE_1, languages)
 
@@ -136,7 +136,7 @@ def read_sources(sources: List[int], stored: str = None, languages: Languages) -
     return languages
 
 if __name__ == '__main__':
-    if 1:
+    if 0:
         print("Train Preprocessing...")
         train_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, PREPROCESSING_METHODS)
         train_languages = read_sources(
@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
     if 1: 
         print("Valid Preprocessing...")
-        dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, PREPROCESSING_METHODS)
+        dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, [])
         dev_languages = read_sources(
             sources   = ['dev'], # valid sources
             languages = dev_languages
