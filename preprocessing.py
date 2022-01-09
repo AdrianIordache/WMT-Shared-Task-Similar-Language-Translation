@@ -150,7 +150,7 @@ if __name__ == '__main__':
             data_version   = DATASET_VERSION
         )
 
-    if 1: 
+    if 0: 
         print("Valid Preprocessing...")
         dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, [])
         dev_languages = read_sources(
@@ -164,3 +164,14 @@ if __name__ == '__main__':
             data_version   = DATASET_VERSION
         )
 
+
+    if 1:
+        path_to_folder = os.path.join(f"models/version-{DATASET_VERSION}")
+        if os.path.exists(path_to_folder) == False: os.makedirs(path_to_folder)
+
+        spm.SentencePieceTrainer.train(
+            input                  = [f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.es', f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.ro'],
+            model_prefix           = os.path.join(path_to_folder, 'sentpiece'),
+            vocab_size             = 32000,
+            shuffle_input_sentence = True,
+        )
