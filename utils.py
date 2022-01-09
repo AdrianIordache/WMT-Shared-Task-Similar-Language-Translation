@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 import sentencepiece as spm
 import xml.etree.ElementTree as ET
+import datetime
+import json
+
 
 import langid
 from langid.langid import LanguageIdentifier, model
@@ -50,7 +53,12 @@ identifier = LanguageIdentifier.from_modelstring(model, norm_probs = True)
 PREPROCESSING_METHODS = ['langid', 'lowercase']
 DATASET_VERSION = 2
 
-PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece.model')
+PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_4k.model')
+
+# basename = "transformer"
+# suffix = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+# filename = "_".join([basename, suffix])
+PATH_TO_LOG = os.path.join('logs', f'version-{DATASET_VERSION}')
 
 PATH_TO_CLEANED_TRAIN = {
     SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),
@@ -242,4 +250,30 @@ def valid_epoch(model, loader, loss_fn, CFG):
         losses_plot.append(losses.value)
 
     free_gpu_memory(DEVICE)
+
+    # check if the model done better then previous
+    if losses.value < losses.average:
+        save_model(model=model, cfg=CFG, exp_dir=PATH_TO_LOG)
+    
     return losses.average, np.mean(losses_plot)
+
+
+def save_model(model, cfg, exp_dir):
+    os.makedirs(exp_dir, exist_ok=True)
+
+    exps = [d for d in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, d))]
+    files = set(map(int, exps))
+    if len(files):
+        exp_id = min(set(range(1, max(files) + 2)) - files)
+    else:
+        exp_id = 1
+
+    exp_dir = os.path.join(exp_dir, str(exp_id))
+    os.makedirs(exp_dir, exist_ok=True)
+
+    json.dump(cfg, open(exp_dir + '/config.json', 'w'))
+
+    torch.save({
+        'model': model.state_dict(),
+        },
+        os.path.join(exp_dir, f'best.pth'))

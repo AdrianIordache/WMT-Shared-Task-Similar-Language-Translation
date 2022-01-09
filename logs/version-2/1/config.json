@@ -1,0 +1,1 @@
+{"batch_size_t": 16, "batch_size_v": 1, "learning_rate": 0.0001, "betas": [0.9, 0.98], "eps": 1e-09, "n_heads": 8, "embedding_size": 512, "ffn_hidden_dim": 2048, "num_encoder_layers": 2, "num_decoder_layers": 2, "epochs": 1, "num_workers": 0, "debug": false, "print_freq": 100}

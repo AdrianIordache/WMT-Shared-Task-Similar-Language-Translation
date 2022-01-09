@@ -3,23 +3,23 @@ from dataset import *
 from models  import *
 
 CFG = {
-    'batch_size_t': 1,
+    'batch_size_t': 16,
     'batch_size_v': 1,
     'learning_rate': 0.0001,
     'betas': (0.9, 0.98),
     'eps': 1e-9,
 
-    'n_heads': 2,
-    'embedding_size': 128,
-    'ffn_hidden_dim': 128,
+    'n_heads': 8,
+    'embedding_size': 512,
+    'ffn_hidden_dim': 2048,
 
-    'num_encoder_layers': 1,
-    'num_decoder_layers': 1,
+    'num_encoder_layers': 2,
+    'num_decoder_layers': 2,
 
-    'epochs': 3,
+    'epochs': 1,
     'num_workers': 0,
     'debug': False, 
-    'print_freq': 50, 
+    'print_freq': 100, 
 }
 
 if __name__ == "__main__":
@@ -63,8 +63,8 @@ if __name__ == "__main__":
         drop_last      = False
     )
 
-    SRC_VOCAB_SIZE = 32000
-    TGT_VOCAB_SIZE = 32000
+    SRC_VOCAB_SIZE = 4000
+    TGT_VOCAB_SIZE = 4000
 
     model = Seq2SeqTransformer(
         CFG['num_encoder_layers'], 
@@ -89,5 +89,3 @@ if __name__ == "__main__":
         train_avg_loss, train_loss_mean = train_epoch(model, trainloader, optimizer, loss_fn, epoch, CFG)
         valid_avg_loss, valid_loss_mean = valid_epoch(model, validloader, loss_fn, CFG)
         print(f"Epoch: [{epoch + 1}]/[{CFG['epochs']}], Train Loss: {train_avg_loss:.3f}, Valid Loss: {valid_avg_loss:.3f}")
-
-        break
