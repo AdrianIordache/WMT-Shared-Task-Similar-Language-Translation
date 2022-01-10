@@ -88,7 +88,7 @@ if __name__ == "__main__":
     }
 
     LOSS = "0"
-    PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODEL, f'model_{CFG['id']_name_{CFG['architecture_type']}_loss_{LOSS:.2f}.pth}')
+    PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODEL, f"model_{CFG['id']}_name_{CFG['architecture_type']}_loss_{LOSS:.2f}.pth")
     
     model = Seq2SeqTransformer(
             CFG['num_encoder_layers'], 

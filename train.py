@@ -3,13 +3,14 @@ from dataset   import *
 from models    import *
 from translate import *
 
+USER          = 'adrian'
 QUIET         = False 
 SAVE_TO_LOG   = True
-GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/version-{DATASET_VERSION}/global_logger.csv', save_to_log = SAVE_TO_LOG)
+GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/version-{DATASET_VERSION}/{USER}/global_logger.csv', save_to_log = SAVE_TO_LOG)
 
 CFG = {
     'id': GLOBAL_LOGGER.get_version_id(),
-    'batch_size_t': 1,
+    'batch_size_t': 16,
     'batch_size_v': 1,
     
     # Optimizer Hyper-parameters
@@ -18,9 +19,9 @@ CFG = {
     'eps': 1e-9,
 
     # Vocabulary Hyper-parameters
-    'src_vocab_size':  4000,
-    'tgt_vocab_size':  4000, 
-    'sentpiece_model': 'sentpiece_4k.model',
+    'src_vocab_size':  32000,
+    'tgt_vocab_size':  32000, 
+    'sentpiece_model': 'sentpiece_32k.model',
 
     # Architecture Hyper-parameters
     'architecture_type': 'transformer',
@@ -41,7 +42,7 @@ CFG = {
     'epochs': 10,
     'num_workers': 4,
     'debug': False, 
-    'print_freq': 100, 
+    'print_freq': 1000, 
     'observation': None, # "Should be a string, more specific information for experiments"
     'save_to_log': SAVE_TO_LOG
 }
