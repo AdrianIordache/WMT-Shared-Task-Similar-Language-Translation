@@ -28,6 +28,7 @@ from IPython.display import display
 import torch
 import torchtext
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torch import Tensor
 from torch.nn import Transformer
@@ -259,6 +260,7 @@ def valid_epoch(model, loader, loss_fn, CFG):
 
 
 def save_model(model, cfg, exp_dir):
+    exp_dir = os.path.join(exp_dir, cfg['type'])
     os.makedirs(exp_dir, exist_ok=True)
 
     exps = [d for d in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, d))]

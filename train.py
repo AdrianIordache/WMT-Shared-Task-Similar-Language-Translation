@@ -1,6 +1,7 @@
 from utils   import *
 from dataset import *
 from models  import *
+import sys
 
 CFG = {
     'batch_size_t': 16,
@@ -8,6 +9,8 @@ CFG = {
     'learning_rate': 0.0001,
     'betas': (0.9, 0.98),
     'eps': 1e-9,
+
+    'type': 'rnn',
 
     'n_heads': 8,
     'embedding_size': 512,
@@ -17,7 +20,7 @@ CFG = {
     'num_decoder_layers': 2,
 
     'epochs': 1,
-    'num_workers': 0,
+    'num_workers': 4,
     'debug': False, 
     'print_freq': 100, 
 }
@@ -66,15 +69,41 @@ if __name__ == "__main__":
     SRC_VOCAB_SIZE = 4000
     TGT_VOCAB_SIZE = 4000
 
-    model = Seq2SeqTransformer(
-        CFG['num_encoder_layers'], 
-        CFG['num_decoder_layers'], 
-        CFG['embedding_size'], 
-        CFG['n_heads'], 
-        SRC_VOCAB_SIZE, 
-        TGT_VOCAB_SIZE, 
-        CFG['ffn_hidden_dim']
-    )
+    if CFG['type'].lower() == 'transformer':
+        model = Seq2SeqTransformer(
+            CFG['num_encoder_layers'], 
+            CFG['num_decoder_layers'], 
+            CFG['embedding_size'], 
+            CFG['n_heads'], 
+            SRC_VOCAB_SIZE, 
+            TGT_VOCAB_SIZE, 
+            CFG['ffn_hidden_dim']
+        )
+    elif CFG['type'].lower() == 'rnn':
+        INPUT_DIM = SRC_VOCAB_SIZE
+        OUTPUT_DIM = TGT_VOCAB_SIZE
+        # ENC_EMB_DIM = 256
+        # DEC_EMB_DIM = 256
+        # ENC_HID_DIM = 512
+        # DEC_HID_DIM = 512
+        # ATTN_DIM = 64
+        # ENC_DROPOUT = 0.5
+        # DEC_DROPOUT = 0.5
+
+        ENC_EMB_DIM = CFG['embedding_size']
+        DEC_EMB_DIM = CFG['embedding_size']
+        ENC_HID_DIM = 64
+        DEC_HID_DIM = 64
+        ATTN_DIM = 8
+        ENC_DROPOUT = 0.5
+        DEC_DROPOUT = 0.5
+
+        enc = EncoderRNN(INPUT_DIM, ENC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, ENC_DROPOUT)
+        attn = AttentionRNN(ENC_HID_DIM, DEC_HID_DIM, ATTN_DIM)
+        dec = DecoderRNN(OUTPUT_DIM, DEC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, DEC_DROPOUT, attn)
+        model = Seq2SeqRNN(enc, dec, DEVICE)
+    else:
+        sys.exit('Invalid model name. Options are: Transformer / RNN')
 
     print(CFG)
     for p in model.parameters():
