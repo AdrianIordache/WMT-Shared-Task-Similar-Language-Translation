@@ -2,25 +2,25 @@ import gc
 import re
 import os
 import io
+import sys
+import json
 import math
 import time
 import string
 import random
 import pickle
+import datetime
 import tempfile
 import linecache
 import numpy as np
 import pandas as pd
 import sentencepiece as spm
 import xml.etree.ElementTree as ET
-import datetime
-import json
-
 
 import langid
 from langid.langid import LanguageIdentifier, model
 
-from typing import List, Iterable, Tuple
+from typing import List, Iterable, Tuple, Dict
 from collections import Counter
 from unicodedata import normalize
 from IPython.display import display
@@ -39,6 +39,8 @@ from torchtext.vocab import build_vocab_from_iterator
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
+import warnings
+warnings.filterwarnings("ignore")
 
 SRC_LANGUAGE = 'es'
 TGT_LANGUAGE = 'ro'
@@ -54,12 +56,8 @@ identifier = LanguageIdentifier.from_modelstring(model, norm_probs = True)
 PREPROCESSING_METHODS = ['langid', 'lowercase']
 DATASET_VERSION = 2
 
-PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_4k.model')
-
-# basename = "transformer"
-# suffix = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
-# filename = "_".join([basename, suffix])
-PATH_TO_LOG = os.path.join('logs', f'version-{DATASET_VERSION}')
+PATH_TO_LOG   = os.path.join('logs', f'version-{DATASET_VERSION}')
+PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_8k.model')
 
 PATH_TO_CLEANED_TRAIN = {
     SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),
@@ -74,9 +72,8 @@ PATH_TO_CLEANED_VALID = {
 UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
 SPECIAL_SYMBOLS = ['<unk>', '<pad>', '<bos>', '<eos>']
 
-SEED      = 42
 DECIMALS  = 4
-VERBOSITY = 50
+SEED      = 42
 RD        = lambda x: np.round(x, DECIMALS)
 DEVICE    = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -242,7 +239,7 @@ def valid_epoch(model, loader, loss_fn, CFG):
         end = time.time()
 
         if step % CFG['print_freq'] == 0 or step == (len(loader) - 1):
-            print('[GPU {0}][VALID] Epoch: [[{1}/{2}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
+            print('[GPU {0}][VALID] Epoch: [{1}/{2}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
                   .format(DEVICE, step, len(loader), 
                     remain   = time_since(start, float(step + 1) / len(loader)), 
                     loss     = losses)
@@ -251,11 +248,6 @@ def valid_epoch(model, loader, loss_fn, CFG):
         losses_plot.append(losses.value)
 
     free_gpu_memory(DEVICE)
-
-    # check if the model done better then previous
-    if losses.value < losses.average:
-        save_model(model=model, cfg=CFG, exp_dir=PATH_TO_LOG)
-    
     return losses.average, np.mean(losses_plot)
 
 

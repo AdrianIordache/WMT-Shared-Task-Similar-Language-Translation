@@ -272,3 +272,45 @@ class Seq2SeqRNN(nn.Module):
             output = (trg[t] if teacher_force else top1)
 
         return outputs
+
+
+def get_model(CFG: Dict) -> nn.Module:
+    assert CFG['architecture_type'].lower() in ['transformer', 'rnn'], \
+        'Invalid architecture type. Options are: Transformer / RNN'
+
+    if CFG['architecture_type'].lower() == 'transformer':
+        return Seq2SeqTransformer(
+            CFG['num_encoder_layers'], 
+            CFG['num_decoder_layers'], 
+            CFG['embedding_size'], 
+            CFG['n_heads'], 
+            CFG['src_vocab_size'], 
+            CFG['tgt_vocab_size'], 
+            CFG['ffn_hidden_dim']
+        )
+    
+    if CFG['architecture_type'].lower() == 'rnn':
+        encoder   = EncoderRNN(
+            CFG['src_vocab_size'], 
+            CFG['embedding_size'], 
+            CFG['encoder_hidden_dim'], 
+            CFG['decoder_hidden_dim'], 
+            CFG['encoder_dropout']
+        )
+        
+        attention = AttentionRNN(
+            CFG['encoder_hidden_dim'], 
+            CFG['decoder_hidden_dim'], 
+            CFG['attention_dim']
+        )
+        
+        decoder   = DecoderRNN(
+            CFG['tgt_vocab_size'], 
+            CFG['embedding_size'], 
+            CFG['encoder_hidden_dim'], 
+            CFG['decoder_hidden_dim'], 
+            CFG['decoder_dropout'], 
+            attention
+        )
+        
+        return Seq2SeqRNN(encoder, decoder, DEVICE)

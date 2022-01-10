@@ -1,31 +1,47 @@
 from utils   import *
 from dataset import *
 from models  import *
-import sys
+
 
 CFG = {
-    'batch_size_t': 16,
+    'batch_size_t': 4,
     'batch_size_v': 1,
+    
+    # Optimizer Hyper-parameters
     'learning_rate': 0.0001,
     'betas': (0.9, 0.98),
     'eps': 1e-9,
 
-    'type': 'rnn',
+    # Vocabulary Hyper-parameters
+    'src_vocab_size': 8000,
+    'tgt_vocab_size': 8000, 
 
-    'n_heads': 8,
-    'embedding_size': 512,
-    'ffn_hidden_dim': 2048,
+    # Architecture Hyper-parameters
+    'architecture_type': 'transformer',
+    'embedding_size': 512,               # transformer & rnn
 
-    'num_encoder_layers': 2,
-    'num_decoder_layers': 2,
+    'n_heads': 8,                        # transformer
+    'ffn_hidden_dim': 2048,              # transformer
+    'num_encoder_layers': 2,             # transformer
+    'num_decoder_layers': 2,             # transformer
 
+    'attention_dim': 8,                  # rnn
+    'encoder_hidden_dim': 64,            # rnn
+    'decoder_hidden_dim': 64,            # rnn
+    'encoder_dropout': 0.5,              # rnn
+    'decoder_dropout': 0.5,              # rnn
+
+    # Training Script Parameters
     'epochs': 1,
     'num_workers': 4,
     'debug': False, 
     'print_freq': 100, 
+    'observation': None, # "Should be a string, more specific information for experiments"
 }
 
+
 if __name__ == "__main__":
+    print(f"Config File: {CFG}")
     with open(PATH_TO_CLEANED_TRAIN[SRC_LANGUAGE], 'r') as src_file: train_src_sentences = src_file.read().splitlines()
     with open(PATH_TO_CLEANED_TRAIN[TGT_LANGUAGE], 'r') as tgt_file: train_tgt_sentences = tgt_file.read().splitlines()
 
@@ -66,46 +82,7 @@ if __name__ == "__main__":
         drop_last      = False
     )
 
-    SRC_VOCAB_SIZE = 4000
-    TGT_VOCAB_SIZE = 4000
-
-    if CFG['type'].lower() == 'transformer':
-        model = Seq2SeqTransformer(
-            CFG['num_encoder_layers'], 
-            CFG['num_decoder_layers'], 
-            CFG['embedding_size'], 
-            CFG['n_heads'], 
-            SRC_VOCAB_SIZE, 
-            TGT_VOCAB_SIZE, 
-            CFG['ffn_hidden_dim']
-        )
-    elif CFG['type'].lower() == 'rnn':
-        INPUT_DIM = SRC_VOCAB_SIZE
-        OUTPUT_DIM = TGT_VOCAB_SIZE
-        # ENC_EMB_DIM = 256
-        # DEC_EMB_DIM = 256
-        # ENC_HID_DIM = 512
-        # DEC_HID_DIM = 512
-        # ATTN_DIM = 64
-        # ENC_DROPOUT = 0.5
-        # DEC_DROPOUT = 0.5
-
-        ENC_EMB_DIM = CFG['embedding_size']
-        DEC_EMB_DIM = CFG['embedding_size']
-        ENC_HID_DIM = 64
-        DEC_HID_DIM = 64
-        ATTN_DIM = 8
-        ENC_DROPOUT = 0.5
-        DEC_DROPOUT = 0.5
-
-        enc = EncoderRNN(INPUT_DIM, ENC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, ENC_DROPOUT)
-        attn = AttentionRNN(ENC_HID_DIM, DEC_HID_DIM, ATTN_DIM)
-        dec = DecoderRNN(OUTPUT_DIM, DEC_EMB_DIM, ENC_HID_DIM, DEC_HID_DIM, DEC_DROPOUT, attn)
-        model = Seq2SeqRNN(enc, dec, DEVICE)
-    else:
-        sys.exit('Invalid model name. Options are: Transformer / RNN')
-
-    print(CFG)
+    model = get_model(CFG)
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
@@ -114,7 +91,8 @@ if __name__ == "__main__":
     loss_fn   = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
     optimizer = torch.optim.Adam(model.parameters(), lr = CFG['learning_rate'], betas = CFG['betas'], eps = CFG['eps'])
 
+    best_loss = np.inf
     for epoch in range(CFG['epochs']):
         train_avg_loss, train_loss_mean = train_epoch(model, trainloader, optimizer, loss_fn, epoch, CFG)
         valid_avg_loss, valid_loss_mean = valid_epoch(model, validloader, loss_fn, CFG)
-        print(f"Epoch: [{epoch + 1}]/[{CFG['epochs']}], Train Loss: {train_avg_loss:.3f}, Valid Loss: {valid_avg_loss:.3f}")
+        print(f"Epoch: [{epoch + 1}]/[{CFG['epochs']}], Train Loss: {train_loss_mean:.3f}, Valid Loss: {valid_loss_mean:.3f}")
