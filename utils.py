@@ -40,6 +40,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
 from nltk.translate.bleu_score import corpus_bleu
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -53,12 +54,13 @@ PATH_TO_SOURCE_3   = os.path.join(PATH_TO_DATA, 'source-3')
 PATH_TO_SOURCE_4   = os.path.join(PATH_TO_DATA, 'source-4')
 PATH_TO_SOURCE_DEV = os.path.join(PATH_TO_DATA, 'source-dev')
 
-identifier = LanguageIdentifier.from_modelstring(model, norm_probs = True)
+identifier            = LanguageIdentifier.from_modelstring(model, norm_probs = True)
 PREPROCESSING_METHODS = ['langid', 'lowercase']
-DATASET_VERSION = 2
+DATASET_VERSION       = 2
 
-PATH_TO_LOG   = os.path.join('logs', f'version-{DATASET_VERSION}')
-PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_32k.model')
+PATH_TO_LOG                 = os.path.join('logs', f'version-{DATASET_VERSION}')
+PATH_TO_MODELS              = os.path.join('models', f'version-{DATASET_VERSION}')
+PATH_TO_SENTENCEPIECE_MODEL = os.path.join('sentencepiece', f'version-{DATASET_VERSION}')
 
 PATH_TO_CLEANED_TRAIN = {
     SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),
@@ -77,6 +79,15 @@ DECIMALS  = 4
 SEED      = 42
 RD        = lambda x: np.round(x, DECIMALS)
 DEVICE    = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+OUTPUT = {
+    'train_loss': None,
+    'valid_loss': None,
+    'test_loss':  None,
+
+    'valid_blue_score': None,
+    'test_blue_score': None
+}
 
 def seed_everything(SEED = 42):
     random.seed(SEED)
@@ -107,6 +118,76 @@ def time_since(since, percent):
     total_seconds    = seconds / (percent)
     remained_seconds = total_seconds - seconds
     return f'{seconds_as_minutes(seconds)} (remain {seconds_as_minutes(remained_seconds)})'
+
+
+class GlobalLogger:
+    def __init__(self, path_to_global_logger: str, save_to_log: bool):
+        self.save_to_log = save_to_log
+        self.path_to_global_logger = path_to_global_logger
+
+        if os.path.exists(self.path_to_global_logger):
+            self.logger = pd.read_csv(self.path_to_global_logger)
+
+    def append(self, config_file: Dict, output_file: Dict):
+        if self.save_to_log == False: return
+
+        if os.path.exists(self.path_to_global_logger) == False:
+            config_columns = [key for key in config_file.keys()]
+            output_columns = [key for key in output_file.keys()]
+
+            columns = config_columns + output_columns 
+            logger = pd.DataFrame(columns = columns)
+            logger.to_csv(self.path_to_global_logger, index = False)
+            
+        self.logger = pd.read_csv(self.path_to_global_logger)
+        sample = {**config_file, **output_file}
+        columns = [key for (key, value) in sample.items()]
+
+        row = [value for (key, value) in sample.items()]
+        row = np.array(row)
+        row = np.expand_dims(row, axis = 0)
+
+        sample = pd.DataFrame(row, columns = columns)
+        self.logger = self.logger.append(sample, ignore_index = True)
+        self.logger.to_csv(self.path_to_global_logger, index = False)
+
+    
+    def get_version_id(self):
+        if os.path.exists(self.path_to_global_logger) == False: return 0
+        logger = pd.read_csv(self.path_to_global_logger)
+        ids = logger["id"].values
+        if len(ids) == 0: return 0
+        return ids[-1] + 1
+    
+    def view(self):
+        from IPython.display import display
+        display(self.logger)
+
+
+class Logger:
+    def __init__(self, path_to_logger: str = 'logger.log', distributed = False):
+        from logging import getLogger, INFO, FileHandler,  Formatter,  StreamHandler
+
+        self.logger = getLogger(__name__)
+        self.logger.setLevel(INFO)
+
+        if distributed == False:
+            handler1 = StreamHandler()
+            handler1.setFormatter(Formatter("%(message)s"))
+            self.logger.addHandler(handler1)
+
+        handler2 = FileHandler(filename = path_to_logger)
+        handler2.setFormatter(Formatter("%(message)s"))
+        self.logger.addHandler(handler2)
+
+    def print(self, message):
+        self.logger.info(message)
+
+    def close(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            handler.close()
+            self.logger.removeHandler(handler)
 
 class AverageMeter(object):
     def __init__(self):
@@ -178,7 +259,7 @@ def free_gpu_memory(device, object = None, verbose = False):
     with torch.cuda.device(device):
         torch.cuda.empty_cache()
 
-def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG):
+def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG, logger):
     model.train()
     losses_plot = []
 
@@ -205,7 +286,7 @@ def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG):
         end = time.time()
 
         if step % CFG['print_freq'] == 0 or step == (len(loader) - 1):
-            print('[GPU {0}][TRAIN] Epoch: [{1}][{2}/{3}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
+            logger.print('[GPU {0}][TRAIN] Epoch: [{1}][{2}/{3}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
                   .format(DEVICE, epoch + 1, step, len(loader), 
                     remain   = time_since(start, float(step + 1) / len(loader)), 
                     loss     = losses)
@@ -218,7 +299,7 @@ def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG):
     return losses.average, np.mean(losses_plot)
 
 
-def valid_epoch(model, loader, loss_fn, CFG):
+def valid_epoch(model, loader, loss_fn, CFG, logger):
     model.eval()
 
     losses_plot = []
@@ -241,7 +322,7 @@ def valid_epoch(model, loader, loss_fn, CFG):
         end = time.time()
 
         if step % CFG['print_freq'] == 0 or step == (len(loader) - 1):
-            print('[GPU {0}][VALID] Epoch: [{1}/{2}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
+            logger.print('[GPU {0}][VALID] Epoch: [{1}/{2}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
                   .format(DEVICE, step, len(loader), 
                     remain   = time_since(start, float(step + 1) / len(loader)), 
                     loss     = losses)
@@ -252,25 +333,3 @@ def valid_epoch(model, loader, loss_fn, CFG):
 
     free_gpu_memory(DEVICE)
     return losses.average, np.mean(losses_plot)
-
-
-def save_model(model, cfg, exp_dir):
-    exp_dir = os.path.join(exp_dir, cfg['type'])
-    os.makedirs(exp_dir, exist_ok=True)
-
-    exps = [d for d in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, d))]
-    files = set(map(int, exps))
-    if len(files):
-        exp_id = min(set(range(1, max(files) + 2)) - files)
-    else:
-        exp_id = 1
-
-    exp_dir = os.path.join(exp_dir, str(exp_id))
-    os.makedirs(exp_dir, exist_ok=True)
-
-    json.dump(cfg, open(exp_dir + '/config.json', 'w'))
-
-    torch.save({
-        'model': model.state_dict(),
-        },
-        os.path.join(exp_dir, f'best.pth'))

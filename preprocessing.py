@@ -35,7 +35,7 @@ class Languages:
                 input_language_file.write(cleaned_input_sentence + '\n')
                 target_language_file.write(cleaned_target_sentence + '\n')
             except:
-                if verbose: print(f"[REMOVED]: [{input_sentence}] -> [{target_sentence}]")
+                if verbose: print(f"[REMOVED]: [{cleaned_input_sentence}] -> [{cleaned_target_sentence}]")
                 continue
 
         input_language_file.close()
@@ -166,14 +166,14 @@ if __name__ == '__main__':
 
 
     if 1:
-        path_to_folder = os.path.join(f"models/version-{DATASET_VERSION}")
+        path_to_folder = os.path.join(f"sentencepiece/version-{DATASET_VERSION}")
         if os.path.exists(path_to_folder) == False: os.makedirs(path_to_folder)
 
         spm.SentencePieceTrainer.train(
             input                  = [f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.es', f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.ro'],
-            model_prefix           = os.path.join(path_to_folder, 'sentpiece_32k'),
+            model_prefix           = os.path.join(path_to_folder, 'sentpiece_4k'),
             character_coverage     = 1,
-            vocab_size             = 32000,
+            vocab_size             = 4000,
             shuffle_input_sentence = True,
             unk_id                 = UNK_IDX,
             bos_id                 = BOS_IDX,

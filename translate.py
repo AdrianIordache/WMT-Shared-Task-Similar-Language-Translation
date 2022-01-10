@@ -48,10 +48,9 @@ def translate(model: torch.nn.Module, src_sentences: List[str]):
 
 
 if __name__ == "__main__":
-    PATH_TO_BEST_MODEL = 'best.pth'
-
     CFG = {
-        'batch_size_t': 4,
+        'id': 0,
+        'batch_size_t': 1,
         'batch_size_v': 1,
         
         # Optimizer Hyper-parameters
@@ -60,8 +59,9 @@ if __name__ == "__main__":
         'eps': 1e-9,
 
         # Vocabulary Hyper-parameters
-        'src_vocab_size': 4000,
-        'tgt_vocab_size': 4000, 
+        'src_vocab_size':  4000,
+        'tgt_vocab_size':  4000, 
+        'sentpiece_model': 'sentpiece_4k.model',
 
         # Architecture Hyper-parameters
         'architecture_type': 'transformer',
@@ -79,13 +79,17 @@ if __name__ == "__main__":
         'decoder_dropout': 0.5,              # rnn
 
         # Training Script Parameters
-        'epochs': 1,
+        'epochs': 10,
         'num_workers': 4,
-        'debug': False, 
+        'debug': True, 
         'print_freq': 100, 
         'observation': None, # "Should be a string, more specific information for experiments"
+        'save_to_log': SAVE_TO_LOG
     }
 
+    LOSS = "0"
+    PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODEL, f'model_{CFG['id']_name_{CFG['architecture_type']}_loss_{LOSS:.2f}.pth}')
+    
     model = Seq2SeqTransformer(
             CFG['num_encoder_layers'], 
             CFG['num_decoder_layers'], 
