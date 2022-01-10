@@ -58,7 +58,7 @@ PREPROCESSING_METHODS = ['langid', 'lowercase']
 DATASET_VERSION = 2
 
 PATH_TO_LOG   = os.path.join('logs', f'version-{DATASET_VERSION}')
-PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_4k.model')
+PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_32k.model')
 
 PATH_TO_CLEANED_TRAIN = {
     SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),

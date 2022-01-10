@@ -13,8 +13,8 @@ CFG = {
     'eps': 1e-9,
 
     # Vocabulary Hyper-parameters
-    'src_vocab_size': 8000,
-    'tgt_vocab_size': 8000, 
+    'src_vocab_size': 32000,
+    'tgt_vocab_size': 32000, 
 
     # Architecture Hyper-parameters
     'architecture_type': 'transformer',
@@ -32,7 +32,7 @@ CFG = {
     'decoder_dropout': 0.5,              # rnn
 
     # Training Script Parameters
-    'epochs': 1,
+    'epochs': 10,
     'num_workers': 4,
     'debug': False, 
     'print_freq': 100, 

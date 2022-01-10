@@ -29,7 +29,6 @@ def greedy_decode(model, src_sentence, src_mask, max_len, start_symbol):
 
 def translate(model: torch.nn.Module, src_sentences: List[str]):
     model.eval()
-
     tgt_sentences = []
     sp = spm.SentencePieceProcessor(model_file = PATH_TO_MODEL)
 

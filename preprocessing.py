@@ -171,7 +171,16 @@ if __name__ == '__main__':
 
         spm.SentencePieceTrainer.train(
             input                  = [f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.es', f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.ro'],
-            model_prefix           = os.path.join(path_to_folder, 'sentpiece'),
+            model_prefix           = os.path.join(path_to_folder, 'sentpiece_32k'),
+            character_coverage     = 1,
             vocab_size             = 32000,
             shuffle_input_sentence = True,
+            unk_id                 = UNK_IDX,
+            bos_id                 = BOS_IDX,
+            eos_id                 = EOS_IDX,
+            pad_id                 = PAD_IDX,
+            unk_piece              = '<unk>',
+            bos_piece              = '<bos>',
+            eos_piece              = '<eos>',
+            pad_piece              = '<pad>',
         )
