@@ -39,6 +39,7 @@ from torchtext.vocab import build_vocab_from_iterator
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
+from nltk.translate.bleu_score import corpus_bleu
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -57,7 +58,7 @@ PREPROCESSING_METHODS = ['langid', 'lowercase']
 DATASET_VERSION = 2
 
 PATH_TO_LOG   = os.path.join('logs', f'version-{DATASET_VERSION}')
-PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_8k.model')
+PATH_TO_MODEL = os.path.join('models', f'version-{DATASET_VERSION}', 'sentpiece_4k.model')
 
 PATH_TO_CLEANED_TRAIN = {
     SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),
@@ -211,6 +212,7 @@ def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG):
             )
 
         losses_plot.append(losses.value)
+        if CFG['debug'] and step == 100: break
 
     free_gpu_memory(DEVICE)
     return losses.average, np.mean(losses_plot)
@@ -246,6 +248,7 @@ def valid_epoch(model, loader, loss_fn, CFG):
             )
 
         losses_plot.append(losses.value)
+        if CFG['debug'] and step == 100: break
 
     free_gpu_memory(DEVICE)
     return losses.average, np.mean(losses_plot)

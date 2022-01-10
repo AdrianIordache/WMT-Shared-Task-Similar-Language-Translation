@@ -1,7 +1,7 @@
-from utils   import *
-from dataset import *
-from models  import *
-
+from utils     import *
+from dataset   import *
+from models    import *
+from translate import *
 
 CFG = {
     'batch_size_t': 4,
