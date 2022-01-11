@@ -1,5 +1,6 @@
-from utils  import *
+# from utils  import *
 from models import *
+from train import SAVE_TO_LOG, PATH_TO_SENTENCEPIECE_MODEL
 
 def greedy_decode(model, src_sentence, src_mask, max_len, start_symbol):
     src_sentence = src_sentence.to(DEVICE)
@@ -30,7 +31,8 @@ def greedy_decode(model, src_sentence, src_mask, max_len, start_symbol):
 def translate(model: torch.nn.Module, src_sentences: List[str]):
     model.eval()
     tgt_sentences = []
-    sp = spm.SentencePieceProcessor(model_file = PATH_TO_MODEL)
+    
+    sp = spm.SentencePieceProcessor(model_file = PATH_TO_SENTENCEPIECE_MODEL)
 
     for sentence in src_sentences:
         src_sentence_encoded = sp.encode(sentence.strip(), out_type = int)
@@ -87,8 +89,10 @@ if __name__ == "__main__":
         'save_to_log': SAVE_TO_LOG
     }
 
-    LOSS = "0"
-    PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODEL, f"model_{CFG['id']}_name_{CFG['architecture_type']}_loss_{LOSS:.2f}.pth")
+    LOSS = "1.00"
+    PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, 'model-{}'.format(CFG['id']))
+    PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODELS, 'model_{}_name_{}_loss_{}.pth'.format(CFG["id"], CFG["architecture_type"], LOSS))
+    PATH_TO_SENTENCEPIECE_MODEL = os.path.join(PATH_TO_SENTENCEPIECE_MODEL, CFG['sentpiece_model'])
     
     model = Seq2SeqTransformer(
             CFG['num_encoder_layers'], 
@@ -100,17 +104,20 @@ if __name__ == "__main__":
             CFG['ffn_hidden_dim']
     ).to(DEVICE)
 
+    print('aici')
     states = torch.load(PATH_TO_BEST_MODEL, map_location = torch.device('cpu'))
     model.load_state_dict(states['model'])       
     model.eval() 
+    print('aici')
 
     with open(PATH_TO_CLEANED_VALID[SRC_LANGUAGE], 'r') as src_file: valid_src_sentences = src_file.read().splitlines()
     with open(PATH_TO_CLEANED_VALID[TGT_LANGUAGE], 'r') as tgt_file: valid_tgt_sentences = tgt_file.read().splitlines()
-
+    print('aici')
     test_sentences  = valid_src_sentences[:10]
     label_sentences = valid_tgt_sentences[:10]
 
     tgt_sentences = translate(model, test_sentences)
+    print('aici')
     for (predicted_sentence, label_sentence) in zip(tgt_sentences, label_sentences):
         print("Predicted: ", predicted_sentence)
         print("Correct: ",   label_sentence)
