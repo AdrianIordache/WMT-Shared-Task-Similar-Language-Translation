@@ -10,7 +10,7 @@ GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/version-{DATASET_VER
 
 CFG = {
     'id': GLOBAL_LOGGER.get_version_id(),
-    'batch_size_t': 16,
+    'batch_size_t': 8,
     'batch_size_v': 1,
     
     # Optimizer Hyper-parameters
