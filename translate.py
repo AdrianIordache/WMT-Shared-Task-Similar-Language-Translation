@@ -28,15 +28,20 @@ def greedy_decode(model, src_sentence, src_mask, max_len, start_symbol):
     return ys
 
 
-def translate(model: torch.nn.Module, src_sentences: List[str]):
+def translate(model: torch.nn.Module, src_sentences: List[str], CFG):
     model.eval()
     tgt_sentences = []
-    
-    sp = spm.SentencePieceProcessor(model_file = PATH_TO_SENTENCEPIECE_MODEL)
-
+    sp = spm.SentencePieceProcessor(model_file = os.path.join(PATH_TO_SENTENCEPIECE_MODEL, CFG['sentpiece_model']))
+   
     for sentence in src_sentences:
+        print(sentence)
         src_sentence_encoded = sp.encode(sentence.strip(), out_type = int)
+        print(src_sentence_encoded)
         src_tensor = torch.tensor(src_sentence_encoded, dtype = torch.long)
+        #src_tensor =  torch.cat(
+        #        (torch.tensor([BOS_IDX]), src_tensor, torch.tensor([EOS_IDX])), dim = 0
+        #    )
+        print(src_tensor.shape)
         num_tokens = src_tensor.shape[0]
 
         src_mask    = (torch.zeros(num_tokens, num_tokens)).type(torch.bool)
@@ -61,9 +66,9 @@ if __name__ == "__main__":
         'eps': 1e-9,
 
         # Vocabulary Hyper-parameters
-        'src_vocab_size':  4000,
-        'tgt_vocab_size':  4000, 
-        'sentpiece_model': 'sentpiece_4k.model',
+        'src_vocab_size':  32000,
+        'tgt_vocab_size':  32000, 
+        'sentpiece_model': 'sentpiece_32k.model',
 
         # Architecture Hyper-parameters
         'architecture_type': 'transformer',
@@ -86,13 +91,11 @@ if __name__ == "__main__":
         'debug': True, 
         'print_freq': 100, 
         'observation': None, # "Should be a string, more specific information for experiments"
-        'save_to_log': SAVE_TO_LOG
     }
 
     LOSS = "1.00"
     PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, 'model-{}'.format(CFG['id']))
     PATH_TO_BEST_MODEL = os.path.join(PATH_TO_MODELS, 'model_{}_name_{}_loss_{}.pth'.format(CFG["id"], CFG["architecture_type"], LOSS))
-    PATH_TO_SENTENCEPIECE_MODEL = os.path.join(PATH_TO_SENTENCEPIECE_MODEL, CFG['sentpiece_model'])
     
     model = Seq2SeqTransformer(
             CFG['num_encoder_layers'], 
@@ -108,16 +111,20 @@ if __name__ == "__main__":
     states = torch.load(PATH_TO_BEST_MODEL, map_location = torch.device('cpu'))
     model.load_state_dict(states['model'])       
     model.eval() 
-    print('aici')
 
     with open(PATH_TO_CLEANED_VALID[SRC_LANGUAGE], 'r') as src_file: valid_src_sentences = src_file.read().splitlines()
     with open(PATH_TO_CLEANED_VALID[TGT_LANGUAGE], 'r') as tgt_file: valid_tgt_sentences = tgt_file.read().splitlines()
-    print('aici')
+
     test_sentences  = valid_src_sentences[:10]
     label_sentences = valid_tgt_sentences[:10]
 
     tgt_sentences = translate(model, test_sentences)
-    print('aici')
+
+    test_sentences  = valid_src_sentences[2:10]
+    label_sentences = valid_tgt_sentences[2:10]
+
+    tgt_sentences = translate(model, test_sentences, CFG)
+    
     for (predicted_sentence, label_sentence) in zip(tgt_sentences, label_sentences):
         print("Predicted: ", predicted_sentence)
         print("Correct: ",   label_sentence)
