@@ -1,9 +1,9 @@
 from utils     import *
 from dataset   import *
 from models    import *
-from translate import *
+# from translate import *
 
-USER          = 'adrian'
+USER          = 'andrei'
 QUIET         = False 
 SAVE_TO_LOG   = True
 GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/version-{DATASET_VERSION}/{USER}/global_logger.csv', save_to_log = SAVE_TO_LOG)
@@ -19,9 +19,9 @@ CFG = {
     'eps': 1e-9,
 
     # Vocabulary Hyper-parameters
-    'src_vocab_size':  32000,
-    'tgt_vocab_size':  32000, 
-    'sentpiece_model': 'sentpiece_32k.model',
+    'src_vocab_size':  4000,
+    'tgt_vocab_size':  4000, 
+    'sentpiece_model': 'sentpiece_4k.model',
 
     # Architecture Hyper-parameters
     'architecture_type': 'transformer',

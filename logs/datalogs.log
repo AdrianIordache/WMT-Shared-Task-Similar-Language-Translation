@@ -1,3 +1,0 @@
-Version-0 -> Train: [1, 2, 3, 4] -> Dev: ['dev'] -> Merged
-Version-1 -> Train: [1, 2, 3, 4] -> Dev: ['dev'] -> Sentences Removed based on LangId 
-Version-2 -> Train: [1, 2, 3, 4] -> Dev: ['dev'] -> Sentences Removed based on LangId + LowerCase
