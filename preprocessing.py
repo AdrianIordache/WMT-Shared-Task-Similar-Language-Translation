@@ -1,56 +1,72 @@
-from utils import *
+from config_file import *
 
 class Languages:
     def __init__(self, input_language: str = 'es', target_language: str = 'ca', preprocessing_types: List[str] = []):
         self.input_language      = input_language
         self.target_language     = target_language
         self.preprocessing_types = preprocessing_types
-
+        
         self.dictionary = {
             input_language:  [],
             target_language: [],
         }
 
-    def append(self, key, sentences):
-        assert key in self.dictionary.keys(), "Only two languages"
+    def append(self, key: str, sentences: List[str]) -> None:
+        assert key in self.dictionary.keys(), f"[ERROR] Only two languages allowed ({self.input_language}, {self.target_language})"
         self.dictionary[key].extend(sentences)
 
-    def preprocessing(self, path_to_output: str, data_type: str = 'train', data_version: int = 0, verbose: bool = False):
-        path_to_folder = os.path.join(path_to_output, f"version-{data_version}")
+    def prepare_data(self, path_to_folder: str, verbose_level: bool = 1) -> None:
+        if verbose_level > 0: print(f"Initial number of sentences: {len(self.dictionary[self.input_language])}")
         if os.path.exists(path_to_folder) == False: os.makedirs(path_to_folder)
 
-        input_language_file  = open(os.path.join(path_to_folder, f'cleaned_{data_type}.{self.input_language}'), 'w')
-        target_language_file = open(os.path.join(path_to_folder, f'cleaned_{data_type}.{self.target_language}'), 'w')
+        input_language_file  = open(os.path.join(path_to_folder, f'cleaned_train.{self.input_language}'), 'w')
+        target_language_file = open(os.path.join(path_to_folder, f'cleaned_train.{self.target_language}'), 'w')
 
-        for step, paired_senteneces in enumerate(zip(self.dictionary[self.input_language], \
-                                                                     self.dictionary[self.target_language])): 
+        cleaned_corpus = Languages.corpus_cleaning(
+            corpus = list(zip(self.dictionary[self.input_language], self.dictionary[self.target_language])),
+            preprocessing_types = self.preprocessing_types
+        )
 
-            if step % 100000 == 0 or step == len(self.dictionary[self.input_language]): 
-                print(f"[STEP]: {step}/{len(self.dictionary[self.input_language])}")
+        removed_counter = 0
+        for step, paired_senteneces in enumerate(cleaned_corpus): 
+            if step % 100000 == 0 or step == len(cleaned_corpus): 
+                if verbose_level > 0: print(f"[STEP]: {step}/{len(cleaned_corpus)}")
 
             try:
                 (cleaned_input_sentence, cleaned_target_sentence) = \
-                    Languages.text_cleaning(paired_senteneces, preprocessing = self.preprocessing_types)
+                    Languages.sentences_cleaning(paired_senteneces, preprocessing_types = self.preprocessing_types)
                 
                 input_language_file.write(cleaned_input_sentence + '\n')
                 target_language_file.write(cleaned_target_sentence + '\n')
             except:
-                if verbose: print(f"[REMOVED]: [{cleaned_input_sentence}] -> [{cleaned_target_sentence}]")
+                if verbose_level > 1: print(f"[REMOVED]: [{cleaned_input_sentence}] -> [{cleaned_target_sentence}]")
+                removed_counter += 1
                 continue
+
+        corpus_final_size = len(cleaned_corpus) - removed_counter
+        if verbose_level  > 0: 
+            print(f"Removed {removed_counter} sentences with problems")
+            print(f"Final number of sentences: {corpus_final_size}")
 
         input_language_file.close()
         target_language_file.close()
 
-    def text_cleaning(pair: Tuple[str, str], preprocessing: List[str]):
+        with open(os.path.join(path_to_folder, f'cleaned_train.{self.input_language}') , "r", encoding = "utf-8") as src_file: src_sentences = src_file.read().splitlines()
+        with open(os.path.join(path_to_folder, f'cleaned_train.{self.target_language}'), "r", encoding = "utf-8") as tgt_file: tgt_sentences = tgt_file.read().splitlines()
+        
+        assert len(src_sentences) == corpus_final_size or len(tgt_sentences) == corpus_final_size, "[ERROR] Number of sentences mismatch"
+
+
+    def sentences_cleaning(pair: Tuple[str, str], preprocessing_types: List[str]) -> Tuple[str, str]:
         (input_sentence, target_sentence) = pair
         
-        if 'langid' in preprocessing:
+        if 'langid' in preprocessing_types:
             # remove pairs for which the ro sentence is not actually in ro
-            predicted_language = identifier.classify(target_sentence)[0]
+            predicted_language = IDENTIFIER.classify(target_sentence)[0]
             if predicted_language != TGT_LANGUAGE:
                 raise Exception('RO is not the language for this sentence')
 
-        if 'lowercase' in preprocessing:
+        if 'lowercase' in preprocessing_types:
             input_sentence = input_sentence.split()
             input_sentence = [word.lower() for word in input_sentence]
             input_sentence = ' '.join(input_sentence)
@@ -59,21 +75,61 @@ class Languages:
             target_sentence = [word.lower() for word in target_sentence]
             target_sentence = ' '.join(target_sentence)
 
-        # table    = str.maketrans('', '', string.punctuation)
-        # re_print = re.compile('[^%s]' % re.escape(string.printable))
-        
-        # sentence = normalize('NFD', sentence).encode('ascii', 'ignore')
-        # sentence = sentence.decode('UTF-8')
-        # sentence = sentence.split()
-
-        # lowercase
-        # sentence = [word.lower() for word in sentence]
-        # sentence = [word.translate(table) for word in sentence]
-        # sentence = [re_print.sub('', w) for w in sentence]
-        # sentence = [word for word in sentence if word.isalpha()]
-        # sentence = ' '.join(sentence)
-
         return (input_sentence, target_sentence)
+
+    def corpus_cleaning(corpus: List[Tuple[str, str]], preprocessing_types: List[str], verbose_level: int = 1) -> List[Tuple[str, str]]:
+        if "drop_duplicates" in preprocessing_types:
+            data = pd.DataFrame(corpus, columns = ['source_sentence', 'target_sentence'])
+            initial_samples_count = data.shape[0]
+            data = data.drop_duplicates()
+            dropped_samples_count = initial_samples_count - data.shape[0]
+            if verbose_level > 0: print(f"Removed {dropped_samples_count} duplicate sentences")
+            corpus = list(zip(list(data['source_sentence'].values), list(data['target_sentence'].values)))
+
+        return corpus
+
+class BPEModel:
+    def __init__(self, data_folder : str, vocab_size: int = 37000, min_length: int = 3, max_length : int = 100,  max_length_ratio : int = 1.5):
+        with open(os.path.join(data_folder, f'cleaned_train.{SRC_LANGUAGE}'), "r", encoding = "utf-8") as src_file: src_sentences = src_file.read().splitlines()
+        with open(os.path.join(data_folder, f'cleaned_train.{TGT_LANGUAGE}'), "r", encoding = "utf-8") as tgt_file: tgt_sentences = tgt_file.read().splitlines()
+        
+        with open(os.path.join(data_folder, f"cleaned_train.{SRC_LANGUAGE}-{TGT_LANGUAGE}"), "w", encoding = "utf-8") as output_file:
+            output_file.write("\n".join(src_sentences + tgt_sentences))
+
+        print("\n\n\nLearning BPE...")
+        youtokentome.BPE.train(
+            data       = os.path.join(data_folder, f"cleaned_train.{SRC_LANGUAGE}-{TGT_LANGUAGE}"), 
+            vocab_size = vocab_size,
+            model      = os.path.join(data_folder, f"bpe_{vocab_size}.model")
+        )
+
+        print("\n\n\nLoading BPE model...")
+        bpe_model = youtokentome.BPE(model = os.path.join(data_folder, f"bpe_{vocab_size}.model"))
+
+        print("\n\n\nFiltering...")
+        pairs = list()
+        removed_counter = 0
+        for src_sentence, tgt_sentence in tqdm(zip(src_sentences, tgt_sentences), total = len(src_sentences)):
+            src_token = bpe_model.encode(src_sentence, output_type = youtokentome.OutputType.ID)
+            tgt_token = bpe_model.encode(tgt_sentence, output_type = youtokentome.OutputType.ID)
+            
+            len_src_token, len_tgt_token = len(src_token), len(tgt_token)
+
+            if min_length < len_src_token < max_length and \
+                    min_length < len_tgt_token < max_length and \
+                    1. / max_length_ratio <= len_src_token / len_tgt_token <= max_length_ratio:
+                pairs.append((src_sentence, tgt_sentence))
+            else:
+                removed_counter += 1
+                continue
+
+        print(f"Removed {removed_counter} sentences out of {len(src_sentences)}")
+        print(f"Final number of sentences: {len(src_sentences) - removed_counter}")
+
+        src_sentences, tgt_sentences = zip(*pairs)
+        with open(os.path.join(data_folder, f"cleaned_train_filtered.{SRC_LANGUAGE}"), "w", encoding = "utf-8") as src_file: src_file.write("\n".join(src_sentences))
+        with open(os.path.join(data_folder, f"cleaned_train_filtered.{TGT_LANGUAGE}"), "w", encoding = "utf-8") as tgt_file: tgt_file.write("\n".join(tgt_sentences))
+
 
 def read_source_one(path_to_source: str, languages: Languages) -> Languages:
     for language in [SRC_LANGUAGE, TGT_LANGUAGE]:
@@ -138,49 +194,37 @@ def read_sources(sources: List[int], languages: Languages) -> Languages:
 if __name__ == '__main__':
     if 0:
         print("Train Preprocessing...")
-        train_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, PREPROCESSING_METHODS)
+        OBSERVATION     = "Added dropped duplicates"
+        
+        train_languages = Languages(
+            input_language      = SRC_LANGUAGE, 
+            target_language     = TGT_LANGUAGE, 
+            preprocessing_types = PREPROCESSING_TYPES
+        )
+
         train_languages = read_sources(
-            sources   = [1, 2, 3, 4], # train sources
+            sources   = DATASET_SOURCES, # train sources
             languages = train_languages
         )
 
-        train_languages.preprocessing(
-            path_to_output = 'data/cleaned/',
-            data_type      = 'train',
-            data_version   = DATASET_VERSION
+        train_languages.prepare_data(
+            path_to_folder = PATH_TO_DATASET,
         )
 
-    if 0: 
-        print("Valid Preprocessing...")
-        dev_languages = Languages(SRC_LANGUAGE, TGT_LANGUAGE, [])
-        dev_languages = read_sources(
-            sources   = ['dev'], # valid sources
-            languages = dev_languages
+        DATASET_LOGGER.append(
+            config_file = {'id': DATASET_VERSION},
+            output_file = {
+                'train_sources'       : DATASET_SOURCES,
+                'preprocessing_types' : PREPROCESSING_TYPES,
+                'observation'         : OBSERVATION
+            }
         )
 
-        dev_languages.preprocessing(
-            path_to_output = 'data/cleaned/',
-            data_type      = 'valid',
-            data_version   = DATASET_VERSION
-        )
-
-
-    if 1:
-        path_to_folder = os.path.join(f"sentencepiece/version-{DATASET_VERSION}")
-        if os.path.exists(path_to_folder) == False: os.makedirs(path_to_folder)
-
-        spm.SentencePieceTrainer.train(
-            input                  = [f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.es', f'data/cleaned/version-{DATASET_VERSION}/cleaned_train.ro'],
-            model_prefix           = os.path.join(path_to_folder, 'sentpiece_4k'),
-            character_coverage     = 1,
-            vocab_size             = 4000,
-            shuffle_input_sentence = True,
-            unk_id                 = UNK_IDX,
-            bos_id                 = BOS_IDX,
-            eos_id                 = EOS_IDX,
-            pad_id                 = PAD_IDX,
-            unk_piece              = '<unk>',
-            bos_piece              = '<bos>',
-            eos_piece              = '<eos>',
-            pad_piece              = '<pad>',
+    if 0:
+        bpe = BPEModel(
+            data_folder      = PATH_TO_DATASET,
+            vocab_size       = 37000,
+            min_length       = 3,
+            max_length       = 150,
+            max_length_ratio = 2.
         )

@@ -12,6 +12,7 @@ import pickle
 import datetime
 import tempfile
 import linecache
+import youtokentome
 import numpy as np
 import pandas as pd
 import sentencepiece as spm
@@ -20,10 +21,12 @@ import xml.etree.ElementTree as ET
 import langid
 from langid.langid import LanguageIdentifier, model
 
-from typing import List, Iterable, Tuple, Dict
+from tqdm import tqdm
+from itertools import groupby
 from collections import Counter
 from unicodedata import normalize
 from IPython.display import display
+from typing import List, Iterable, Tuple, Dict
 
 import torch
 import torchtext
@@ -36,7 +39,7 @@ from torch.nn import Transformer
 from torchtext.vocab import Vocab
 from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 from torch.utils.data import DataLoader, Dataset
 
 from nltk.translate.bleu_score import corpus_bleu
@@ -44,81 +47,7 @@ from nltk.translate.bleu_score import corpus_bleu
 import warnings
 warnings.filterwarnings("ignore")
 
-SRC_LANGUAGE = 'es'
-TGT_LANGUAGE = 'ro'
-
-PATH_TO_DATA       = 'data/'
-PATH_TO_SOURCE_1   = os.path.join(PATH_TO_DATA, 'source-1')
-PATH_TO_SOURCE_2   = os.path.join(PATH_TO_DATA, 'source-2')
-PATH_TO_SOURCE_3   = os.path.join(PATH_TO_DATA, 'source-3')
-PATH_TO_SOURCE_4   = os.path.join(PATH_TO_DATA, 'source-4')
-PATH_TO_SOURCE_DEV = os.path.join(PATH_TO_DATA, 'source-dev')
-
-identifier            = LanguageIdentifier.from_modelstring(model, norm_probs = True)
-PREPROCESSING_METHODS = ['langid', 'lowercase']
-DATASET_VERSION       = 2
-
-PATH_TO_LOG                 = os.path.join('logs', f'version-{DATASET_VERSION}')
-PATH_TO_MODELS              = os.path.join('models', f'version-{DATASET_VERSION}')
-PATH_TO_SENTENCEPIECE_MODEL = os.path.join('sentencepiece', f'version-{DATASET_VERSION}')
-
-PATH_TO_CLEANED_TRAIN = {
-    SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.es'),
-    TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_train.ro')
-} 
-
-PATH_TO_CLEANED_VALID = {
-    SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_valid.es'),
-    TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'version-{DATASET_VERSION}', 'cleaned_valid.ro')
-} 
-
-UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
-SPECIAL_SYMBOLS = ['<unk>', '<pad>', '<bos>', '<eos>']
-
-DECIMALS  = 4
-SEED      = 42
-RD        = lambda x: np.round(x, DECIMALS)
 DEVICE    = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-OUTPUT = {
-    'train_loss': None,
-    'valid_loss': None,
-    'test_loss':  None,
-
-    'valid_blue_score': None,
-    'test_blue_score': None
-}
-
-def seed_everything(SEED = 42):
-    random.seed(SEED)
-    np.random.seed(SEED)
-    os.environ['PYTHONHASHSEED'] = str(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
-    torch.backends.cudnn.deterministic = True
-    generator = torch.Generator()
-    generator.manual_seed(SEED)
-
-def seed_worker(worker_id):
-    np.random.seed(SEED)
-    random.seed(SEED)
-
-seed_everything(SEED)
-
-def time_since(since, percent):
-    def seconds_as_minutes(seconds):
-        import math
-        minutes  = math.floor(seconds / 60)
-        seconds -= minutes * 60
-        return f'{int(minutes)}m {int(seconds)}s'
-
-    now     = time.time()
-    seconds = now - since
-
-    total_seconds    = seconds / (percent)
-    remained_seconds = total_seconds - seconds
-    return f'{seconds_as_minutes(seconds)} (remain {seconds_as_minutes(remained_seconds)})'
-
 
 class GlobalLogger:
     def __init__(self, path_to_global_logger: str, save_to_log: bool):
@@ -151,7 +80,6 @@ class GlobalLogger:
         self.logger = self.logger.append(sample, ignore_index = True)
         self.logger.to_csv(self.path_to_global_logger, index = False)
 
-    
     def get_version_id(self):
         if os.path.exists(self.path_to_global_logger) == False: return 0
         logger = pd.read_csv(self.path_to_global_logger)
@@ -189,6 +117,7 @@ class Logger:
             handler.close()
             self.logger.removeHandler(handler)
 
+
 class AverageMeter(object):
     def __init__(self):
         self.reset()
@@ -202,6 +131,38 @@ class AverageMeter(object):
 
     def reset(self):
         self.value, self.average, self.sum, self.count = 0, 0, 0, 0
+
+
+def time_since(since, percent):
+    def seconds_as_minutes(seconds):
+        import math
+        minutes  = math.floor(seconds / 60)
+        seconds -= minutes * 60
+        return f'{int(minutes)}m {int(seconds)}s'
+
+    now     = time.time()
+    seconds = now - since
+
+    total_seconds    = seconds / (percent)
+    remained_seconds = total_seconds - seconds
+    return f'{seconds_as_minutes(seconds)} (remain {seconds_as_minutes(remained_seconds)})'
+
+
+def seed_everything(SEED = 42):
+    random.seed(SEED)
+    np.random.seed(SEED)
+    os.environ['PYTHONHASHSEED'] = str(SEED)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed(SEED)
+    torch.backends.cudnn.deterministic = True
+    generator = torch.Generator()
+    generator.manual_seed(SEED)
+
+
+def seed_worker(worker_id):
+    np.random.seed(SEED)
+    random.seed(SEED)
+
 
 def generate_batch(data_batch):
     src_batch, tgt_batch = [], []
@@ -224,10 +185,12 @@ def generate_batch(data_batch):
 
     return src_batch, tgt_batch
 
+
 def generate_square_subsequent_mask(sz):
     mask = (torch.triu(torch.ones((sz, sz), device = DEVICE)) == 1).transpose(0, 1)
     mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
     return mask
+
 
 def create_mask(src, tgt):
     src_seq_len = src.shape[0]
@@ -240,6 +203,7 @@ def create_mask(src, tgt):
     tgt_padding_mask = (tgt == PAD_IDX).transpose(0, 1)
 
     return src_mask, tgt_mask, src_padding_mask, tgt_padding_mask
+
 
 def free_gpu_memory(device, object = None, verbose = False):
     if object == None:
@@ -333,3 +297,84 @@ def valid_epoch(model, loader, loss_fn, CFG, logger):
 
     free_gpu_memory(DEVICE)
     return losses.average, np.mean(losses_plot)
+
+
+class CrossEntropyLossSmoothed(torch.nn.Module):
+    def __init__(self, eps: int = 0.1):
+        super(CrossEntropyLossSmoothed, self).__init__()
+        self.eps = eps
+
+    def forward(self, inputs, targets, lengths):
+        """
+        :param inputs:  hypothesis target language sequences, a tensor of size (N, pad_length, vocab_size)
+        :param targets: reference  target language sequences, a tensor of size (N, pad_length)
+        :param lengths: true lengths of these sequences, to be able to ignore pads, a tensor of size (N)
+        :return: mean label-smoothed cross-entropy loss, a scalar
+        """
+
+        # Remove pad-positions and flatten 
+        # (sum(lengths), vocab_size)
+        inputs, _, _, _ = pack_padded_sequence(
+            input          = inputs,
+            lengths        = lengths,
+            batch_first    = True,
+            enforce_sorted = False
+        ) 
+
+        # (sum(lengths))
+        targets, _, _, _ = pack_padded_sequence(
+            input          = targets,
+            lengths        = lengths,
+            batch_first    = True,
+            enforce_sorted = False
+        )
+
+        # "Smoothed" one-hot vectors for the gold sequences
+        target_vector = torch.zeros_like(inputs).scatter(dim = 1, index = targets.unsqueeze(1), value = 1.).to(DEVICE)  # (sum(lengths), n_classes), one-hot
+        target_vector = target_vector * (1. - self.eps) + self.eps / target_vector.size(1)  # (sum(lengths), n_classes), "smoothed" one-hot
+        
+        # Compute smoothed cross-entropy loss
+        loss = (-1 * target_vector * F.log_softmax(inputs, dim=1)).sum(dim=1)  # (sum(lengths))
+        
+        # Compute mean loss
+        loss = torch.mean(loss)
+        return loss
+
+
+def get_positional_encoding(d_model: int, max_seq_len: int = 100):
+    positional_encoding = torch.zeros((max_seq_len, d_model)) 
+    for i in range(max_seq_len):
+        for j in range(d_model):
+            if j % 2 == 0:
+                positional_encoding[i, j] = math.sin(i / math.pow(10000, j / d_model))
+            else:
+                positional_encoding[i, j] = math.cos(i / math.pow(10000, (j - 1) / d_model))
+
+    positional_encoding = positional_encoding.unsqueeze(0)  # (1, max_seq_len, d_model)
+    return positional_encoding
+
+
+def get_lr(step, d_model, warmup_steps):
+    lr = 2. * math.pow(d_model, -0.5) * min(math.pow(step, -0.5), step * math.pow(warmup_steps, -1.5))
+    return lr
+
+
+def save_checkpoint(epoch, model, optimizer, prefix=''):
+    """
+    Checkpoint saver. Each save overwrites previous save.
+
+    :param epoch: epoch number (0-indexed)
+    :param model: transformer model
+    :param optimizer: optimized
+    :param prefix: checkpoint filename prefix
+    """
+    state = {'epoch': epoch,
+             'model': model,
+             'optimizer': optimizer}
+    filename = prefix + 'transformer_checkpoint.pth.tar'
+    torch.save(state, filename)
+
+
+def change_lr(optimizer, new_lr):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = new_lr

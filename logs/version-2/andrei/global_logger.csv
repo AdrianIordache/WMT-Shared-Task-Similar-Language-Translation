@@ -1,2 +1,0 @@
-id,batch_size_t,batch_size_v,learning_rate,betas,eps,src_vocab_size,tgt_vocab_size,sentpiece_model,architecture_type,embedding_size,n_heads,ffn_hidden_dim,num_encoder_layers,num_decoder_layers,attention_dim,encoder_hidden_dim,decoder_hidden_dim,encoder_dropout,decoder_dropout,epochs,num_workers,debug,print_freq,observation,save_to_log,train_loss,valid_loss,test_loss,valid_blue_score,test_blue_score
-0,16,1,0.0001,"(0.9, 0.98)",1e-09,4000,4000,sentpiece_4k.model,transformer,512,8,2048,2,2,8,64,64,0.5,0.5,10,4,False,1000,,True,1.1366853607088336,0.9975500450592774,,,

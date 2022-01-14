@@ -1,36 +1,36 @@
 from utils     import *
 from dataset   import *
 from models    import *
-# from translate import *
 
-USER          = 'andrei'
+USER          = 'adrian'
 QUIET         = False 
 SAVE_TO_LOG   = True
-GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/version-{DATASET_VERSION}/{USER}/global_logger.csv', save_to_log = SAVE_TO_LOG)
+GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/dataset-{DATASET_VERSION}/{USER}/global_logger.csv', save_to_log = SAVE_TO_LOG)
 
 CFG = {
     'id': GLOBAL_LOGGER.get_version_id(),
-    'batch_size_t': 8,
-    'batch_size_v': 1,
-    
+    'tokens_in_batch': 4600,
+    'label_smoothing': 0.1,
+
     # Optimizer Hyper-parameters
-    'learning_rate': 0.0001,
+    'learning_rate': get_lr(step = 1, d_model = 512, warmup_steps = 8000),
+    'warmup_steps': 8000,
     'betas': (0.9, 0.98),
     'eps': 1e-9,
 
     # Vocabulary Hyper-parameters
-    'src_vocab_size':  4000,
-    'tgt_vocab_size':  4000, 
-    'sentpiece_model': 'sentpiece_4k.model',
+    'vocab_size'       : 37000,
+    'max_seq_len'      : 256,             # transformer (needs to be computed)
 
     # Architecture Hyper-parameters
     'architecture_type': 'transformer',
-    'embedding_size': 512,               # transformer & rnn
-
-    'n_heads': 8,                        # transformer
-    'ffn_hidden_dim': 2048,              # transformer
-    'num_encoder_layers': 2,             # transformer
-    'num_decoder_layers': 2,             # transformer
+    'd_model'          : 512,             # transformer & rnn  (can also be considered as embeddings size)
+    'n_heads'          : 8,               # transformer
+    'd_queries'        : 64,              # transformer
+    'd_values'         : 64,              # transformer
+    'd_feed_forward'   : 2048,            # transformer
+    'n_layers'         : 6,               # transformer
+    'dropout'          : 0.1,             # transformer
 
     'attention_dim': 8,                  # rnn
     'encoder_hidden_dim': 64,            # rnn
@@ -39,81 +39,165 @@ CFG = {
     'decoder_dropout': 0.5,              # rnn
 
     # Training Script Parameters
-    'epochs': 10,
+    'n_steps': 50000,
+    'epochs':  'NA',
+
     'num_workers': 4,
     'debug': False, 
-    'print_freq': 1000, 
+    'print_freq': 20, 
     'observation': None, # "Should be a string, more specific information for experiments"
     'save_to_log': SAVE_TO_LOG
 }
 
+def train(loader, model, loss_fn, optimizer, epoch, step, config_file, logger):
+    model.train() 
+
+    losses_plot = []
+    losses      = AverageMeter()
+    start = end = time.time()
+
+    for batch_idx, (src_sequences, tgt_sequences, src_sequence_lengths, tgt_sequence_lengths) in enumerate(loader):
+        src_sequences        = src_sequences.to(DEVICE)  # (N, max_source_sequence_pad_length_this_batch)
+        tgt_sequences        = tgt_sequences.to(DEVICE)  # (N, max_target_sequence_pad_length_this_batch)
+        src_sequence_lengths = src_sequence_lengths.to(DEVICE)  # (N)
+        tgt_sequence_lengths = tgt_sequence_lengths.to(DEVICE)  # (N)
+
+        # (N, max_target_sequence_pad_length_this_batch, vocab_size)
+        pred_sequences = model(src_sequences, tgt_sequences, src_sequence_lengths, tgt_sequence_lengths)  
+
+        # Note: If the target sequence is "<BOS> w1 w2 ... wN <EOS> <PAD> <PAD> <PAD> <PAD> ..."
+        # we should consider only "w1 w2 ... wN <EOS>" as <BOS> is not predicted
+        # Therefore, pads start after (length - 1) positions
+        loss = loss_fn(
+            inputs  = pred_sequences,
+            targets = tgt_sequences[:, 1:],
+            lengths = tgt_sequence_lengths.cpu() - 1
+        )
+
+        (loss / batches_per_step).backward()
+        losses.update(loss.item(), (tgt_sequence_lengths - 1).sum().item())
+
+        # Update model (i.e. perform a training step) only after gradients are accumulated from batches_per_step batches
+        if (batch_idx + 1) % batches_per_step == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+
+            # This step is now complete
+            step += 1
+            change_lr(optimizer, new_lr = get_lr(step = step, d_model = config_file['d_model'], warmup_steps = config_file['warmup_steps']))
+
+            end = time.time()
+            if step % config_file['print_freq'] == 0 or step == (config_file['n_steps'] - 1):
+                logger.print('[GPU {0}][TRAIN] Epoch: [{1}/{2}][{3}/{4}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
+                      .format(DEVICE, epoch + 1, epochs, step, config_file['n_steps'], 
+                        remain   = time_since(start, float(batch_idx + 1) / loader.n_batches), 
+                        loss     = losses)
+                )
+
+            losses_plot.append(losses.value)
+
+    free_gpu_memory(DEVICE)
+    return losses.average, np.mean(losses_plot)
+
+def validate(loader, model, loss_fn):
+    model.eval() 
+
+    with torch.no_grad():
+        losses = AverageMeter()
+        losses_plot = []
+
+        for batch_idx, (src_sequences, tgt_sequences, src_sequence_lengths, tgt_sequence_lengths) in enumerate(tqdm(loader, total = loader.n_batches)):
+            src_sequences = src_sequences.to(DEVICE)  # (1, source_sequence_length)
+            tgt_sequences = tgt_sequences.to(DEVICE)  # (1, target_sequence_length)
+            src_sequence_lengths = src_sequence_lengths.to(DEVICE)  # (1)
+            tgt_sequence_lengths = tgt_sequence_lengths.to(DEVICE)  # (1)
+
+            # (1, target_sequence_length, vocab_size)
+            pred_sequences = model(src_sequences, tgt_sequences, src_sequence_lengths, tgt_sequence_lengths) 
+
+            # Note: If the target sequence is "<BOS> w1 w2 ... wN <EOS> <PAD> <PAD> <PAD> <PAD> ..."
+            # we should consider only "w1 w2 ... wN <EOS>" as <BOS> is not predicted
+            # Therefore, pads start after (length - 1) positions
+            loss = loss_fn(
+                inputs  = pred_sequences,
+                targets = tgt_sequences[:, 1:],
+                lengths = tgt_sequence_lengths.cpu() - 1
+            )
+
+            losses.update(loss.item(), (tgt_sequence_lengths - 1).sum().item())
+            losses_plot.append(losses.value)
+
+    free_gpu_memory(DEVICE)
+    return losses.average, np.mean(losses_plot)
 
 if __name__ == "__main__":
     if SAVE_TO_LOG:
-        PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, 'model-{}'.format(CFG['id']))
+        PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, f"{USER}", 'model-{}'.format(CFG['id']))
         if os.path.isdir(PATH_TO_MODELS) == False: os.makedirs(PATH_TO_MODELS)
         logger = Logger(os.path.join(PATH_TO_MODELS, 'model_{}.log'.format(CFG['id'])), distributed = QUIET)
     else:
         logger = Logger(distributed = QUIET)
 
     logger.print(f"Config File: {CFG}")
-    PATH_TO_SENTENCEPIECE_MODEL = os.path.join(PATH_TO_SENTENCEPIECE_MODEL, CFG['sentpiece_model'])
 
-    with open(PATH_TO_CLEANED_TRAIN[SRC_LANGUAGE], 'r') as src_file: train_src_sentences = src_file.read().splitlines()
-    with open(PATH_TO_CLEANED_TRAIN[TGT_LANGUAGE], 'r') as tgt_file: train_tgt_sentences = tgt_file.read().splitlines()
+    trainloader = SequenceLoader(
+        data_folder     = f"data/cleaned/dataset-{DATASET_VERSION}/", 
+        vocab_size      = CFG['vocab_size'], 
+        source_language = SRC_LANGUAGE, 
+        target_language = TGT_LANGUAGE, 
+        dataset_type    = "train", 
+        tokens_in_batch = CFG['tokens_in_batch']
+    )
 
-    with open(PATH_TO_CLEANED_VALID[SRC_LANGUAGE], 'r') as src_file: valid_src_sentences = src_file.read().splitlines()
-    with open(PATH_TO_CLEANED_VALID[TGT_LANGUAGE], 'r') as tgt_file: valid_tgt_sentences = tgt_file.read().splitlines()
+    validloader = SequenceLoader(
+        data_folder     = f"data/cleaned/dataset-{DATASET_VERSION}/", 
+        vocab_size      = CFG['vocab_size'], 
+        source_language = SRC_LANGUAGE, 
+        target_language = TGT_LANGUAGE, 
+        dataset_type    = "dev", 
+        tokens_in_batch = CFG['tokens_in_batch']
+    )
+
+    model = get_model(CFG).to(DEVICE)
+
+    optimizer  = torch.optim.Adam(
+        params = [p for p in model.parameters() if p.requires_grad],
+        lr     = CFG['learning_rate'],
+        betas  = CFG['betas'],
+        eps    = CFG['eps']
+    )
+
+    loss_fn = CrossEntropyLossSmoothed(eps = CFG['label_smoothing']).to(DEVICE)
     
-    trainset = TranslationDataset(
-        src_sentences   = train_src_sentences,
-        tgt_sentences   = train_tgt_sentences,
-        sentpiece_model = PATH_TO_SENTENCEPIECE_MODEL
-    )
-
-    validset = TranslationDataset(
-        src_sentences   = valid_src_sentences,
-        tgt_sentences   = valid_tgt_sentences,
-        sentpiece_model = PATH_TO_SENTENCEPIECE_MODEL
-    )
-
-    trainloader = DataLoader(
-        dataset        = trainset, 
-        batch_size     = CFG['batch_size_t'], 
-        shuffle        = True, 
-        collate_fn     = generate_batch,
-        num_workers    = CFG['num_workers'], 
-        worker_init_fn = seed_worker, 
-        pin_memory     = False,
-        drop_last      = False
-    )
-
-    validloader = DataLoader(
-        dataset        = validset, 
-        batch_size     = CFG['batch_size_v'], 
-        shuffle        = True, 
-        collate_fn     = generate_batch,
-        num_workers    = CFG['num_workers'], 
-        worker_init_fn = seed_worker, 
-        pin_memory     = True,
-        drop_last      = False
-    )
-
-    model = get_model(CFG)
-    for p in model.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
-
-    model     = model.to(DEVICE)
-    loss_fn   = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
-    optimizer = torch.optim.Adam(model.parameters(), lr = CFG['learning_rate'], betas = CFG['betas'], eps = CFG['eps'])
+    batches_per_step = 25000 // CFG['tokens_in_batch']
+    epochs = (CFG['n_steps'] // (trainloader.n_batches // batches_per_step)) + 1
 
     best_model = None
-    best_train_loss, best_valid_loss = np.inf, np.inf
-    for epoch in range(CFG['epochs']):
-        train_avg_loss, train_loss_mean = train_epoch(model, trainloader, optimizer, loss_fn, epoch, CFG, logger)
-        valid_avg_loss, valid_loss_mean = valid_epoch(model, validloader, loss_fn, CFG, logger)
-        logger.print(f"Epoch: [{epoch + 1}]/[{CFG['epochs']}], Train Loss: {train_loss_mean:.3f}, Valid Loss: {valid_loss_mean:.3f}")
+    best_train_loss = np.inf 
+    best_valid_loss = np.inf
+    for epoch in range(epochs):
+        step = epoch * trainloader.n_batches // batches_per_step
+
+        trainloader.create_batches()
+        train_avg_loss, train_loss_mean = train(
+            loader      = trainloader,
+            model       = model,
+            loss_fn     = loss_fn,
+            optimizer   = optimizer,
+            epoch       = epoch,
+            step        = step,
+            config_file = CFG,
+            logger      = logger  
+        )
+
+        validloader.create_batches()
+        valid_avg_loss, valid_loss_mean = validate(
+            loader      = validloader,
+            model       = model,
+            loss_fn     = loss_fn,
+        )
+
+        logger.print(f"Epoch: [{epoch + 1}]/[{epochs}], Train Loss: {train_loss_mean:.3f}, Valid Loss: {valid_loss_mean:.3f}")
 
         if valid_loss_mean < best_valid_loss and CFG['save_to_log']:
             best_train_loss = train_loss_mean
