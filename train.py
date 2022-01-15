@@ -189,6 +189,7 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         step = epoch * trainloader.n_batches // batches_per_step
 
+        trainloader.generate_batches()
         train_avg_loss, train_loss_mean = train(
             loader      = trainloader,
             model       = model,
@@ -200,6 +201,7 @@ if __name__ == "__main__":
             logger      = logger  
         )
 
+        validloader.generate_batches()
         valid_avg_loss, valid_loss_mean = validate(
             loader      = validloader,
             model       = model,

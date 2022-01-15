@@ -43,7 +43,7 @@ class SequenceLoader(object):
         with open(PATH_TO_DATASET_FILES[self.dataset_type][SRC_LANGUAGE], "r", encoding = "utf-8") as src_file:
             source_sentences = src_file.read().splitlines()
 
-        with open(PATH_TO_DATASET_FILES[self.dataset_type][SRC_LANGUAGE], "r", encoding = "utf-8") as tgt_file:
+        with open(PATH_TO_DATASET_FILES[self.dataset_type][TGT_LANGUAGE], "r", encoding = "utf-8") as tgt_file:
             target_sentences = tgt_file.read().splitlines()
 
         assert len(source_sentences) == len(target_sentences), "[ERROR] Number of sentences mismatch"
