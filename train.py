@@ -1,52 +1,63 @@
-from utils     import *
-from dataset   import *
-from models    import *
+from models      import *
+from dataset     import *
+from config_file import *
 
-USER          = 'adrian'
-QUIET         = False 
-SAVE_TO_LOG   = True
-GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/dataset-{DATASET_VERSION}/{USER}/global_logger.csv', save_to_log = SAVE_TO_LOG)
+parser = argparse.ArgumentParser()
+parser.add_argument('--gpu', 
+    dest = 'gpu', type = int, 
+    default = 0, help = "GPU enable for running the procces"
+)
+
+args = parser.parse_args()
+RANK = args.gpu
+
+USER        = 'adrian'
+QUIET       = False 
+SAVE_TO_LOG = True
+
+DEVICE = torch.device(f'cuda:{RANK}' if torch.cuda.is_available() else 'cpu')
+GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/dataset-{DATASET_VERSION}/{USER}/gpu-{RANK}/global_logger.csv', save_to_log = SAVE_TO_LOG)
 
 CFG = {
-    'id': GLOBAL_LOGGER.get_version_id(),
-    'tokens_in_batch': 4600,
-    'label_smoothing': 0.1,
+    'id'                              : GLOBAL_LOGGER.get_version_id(),
+    'tokens_in_batch'                 : 4000,
+    'label_smoothing'                 : 0.1,
 
     # Optimizer Hyper-parameters
-    'learning_rate': get_lr(step = 1, d_model = 512, warmup_steps = 8000),
-    'warmup_steps': 8000,
-    'betas': (0.9, 0.98),
-    'eps': 1e-9,
+    'learning_rate'                   : get_lr(step = 1, d_model = 512, warmup_steps = 8000),
+    'warmup_steps'                    : 8000,
+    'betas'                           : (0.9, 0.98),
+    'eps'                             : 1e-9,
 
     # Vocabulary Hyper-parameters
-    'vocab_size'       : 37000,
-    'max_seq_len'      : 256,             # transformer (needs to be computed)
+    'vocab_size'                      : 37000,
+    'max_seq_len'                     : 256,             # transformer (needs to be computed)
 
     # Architecture Hyper-parameters
-    'architecture_type': 'transformer',
-    'd_model'          : 512,             # transformer & rnn  (can also be considered as embeddings size)
-    'n_heads'          : 8,               # transformer
-    'd_queries'        : 64,              # transformer
-    'd_values'         : 64,              # transformer
-    'd_feed_forward'   : 2048,            # transformer
-    'n_layers'         : 6,               # transformer
-    'dropout'          : 0.1,             # transformer
+    'architecture_type'               : 'transformer',
+    'd_model'                         : 512,             # transformer & rnn  (can also be considered as embeddings size)
+    'n_heads'                         : 8,               # transformer
+    'd_queries'                       : 64,              # transformer
+    'd_values'                        : 64,              # transformer
+    'd_feed_forward'                  : 2048,            # transformer
+    'n_layers'                        : 6,               # transformer
+    'dropout'                         : 0.1,             # transformer
 
-    'attention_dim': 8,                  # rnn
-    'encoder_hidden_dim': 64,            # rnn
-    'decoder_hidden_dim': 64,            # rnn
-    'encoder_dropout': 0.5,              # rnn
-    'decoder_dropout': 0.5,              # rnn
+    'attention_dim'                   : 8,               # rnn
+    'encoder_hidden_dim'              : 64,              # rnn
+    'decoder_hidden_dim'              : 64,              # rnn
+    'encoder_dropout'                 : 0.5,             # rnn
+    'decoder_dropout'                 : 0.5,             # rnn
 
     # Training Script Parameters
-    'n_steps': 50000,
-    'epochs':  'NA',
+    'n_steps'                         : 50000,
+    'epochs'                          :'NA',
 
-    'num_workers': 4,
-    'debug': False, 
-    'print_freq': 20, 
-    'observation': None, # "Should be a string, more specific information for experiments"
-    'save_to_log': SAVE_TO_LOG
+    'num_workers'                     : 4,
+    'debug'                           : False, 
+    'print_freq'                      : 20, 
+    'observation'                     : None, # "Should be a string, more specific information for experiments"
+    'save_to_log'                     : SAVE_TO_LOG
 }
 
 def train(loader, model, loss_fn, optimizer, epoch, step, config_file, logger):
@@ -132,7 +143,7 @@ def validate(loader, model, loss_fn):
 
 if __name__ == "__main__":
     if SAVE_TO_LOG:
-        PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, f"{USER}", 'model-{}'.format(CFG['id']))
+        PATH_TO_MODELS = os.path.join(PATH_TO_MODELS, f'{USER}', f'gpu-{RANK}', 'model-{}'.format(CFG['id']))
         if os.path.isdir(PATH_TO_MODELS) == False: os.makedirs(PATH_TO_MODELS)
         logger = Logger(os.path.join(PATH_TO_MODELS, 'model_{}.log'.format(CFG['id'])), distributed = QUIET)
     else:
@@ -154,7 +165,7 @@ if __name__ == "__main__":
         vocab_size      = CFG['vocab_size'], 
         source_language = SRC_LANGUAGE, 
         target_language = TGT_LANGUAGE, 
-        dataset_type    = "dev", 
+        dataset_type    = "valid", 
         tokens_in_batch = CFG['tokens_in_batch']
     )
 
@@ -178,7 +189,6 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         step = epoch * trainloader.n_batches // batches_per_step
 
-        trainloader.create_batches()
         train_avg_loss, train_loss_mean = train(
             loader      = trainloader,
             model       = model,
@@ -190,7 +200,6 @@ if __name__ == "__main__":
             logger      = logger  
         )
 
-        validloader.create_batches()
         valid_avg_loss, valid_loss_mean = validate(
             loader      = validloader,
             model       = model,

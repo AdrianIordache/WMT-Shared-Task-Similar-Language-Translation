@@ -1,12 +1,19 @@
-from config_file import *
-from models import *
 from train import CFG
+from models import *
+from config_file import *
 
-bpe_model = youtokentome.BPE(model = os.path.join(PATH_TO_DATASET, 'bpe_37000.model'))
+parser = argparse.ArgumentParser()
+parser.add_argument('--gpu', 
+    dest = 'gpu', type = int, 
+    default = 0, help = "GPU enable for running the procces"
+)
 
-def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
+args   = parser.parse_args()
+RANK   = args.gpu
+DEVICE = torch.device(f'cuda:{RANK}' if torch.cuda.is_available() else 'cpu')
+
+def translate(source_sequence, model, bpe_model, beam_size = 4, length_norm_coefficient = 0.6):
     with torch.no_grad():
-        # Beam size
         k = beam_size
 
         # Minimum number of hypotheses to complete
@@ -17,19 +24,20 @@ def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
 
         # If the source sequence is a string, convert to a tensor of IDs
         if isinstance(source_sequence, str):
-            encoder_sequences = bpe_model.encode(source_sequence,
-                                                 output_type=youtokentome.OutputType.ID,
-                                                 bos=False,
-                                                 eos=False)
+            encoder_sequences = bpe_model.encode(source_sequence, output_type = youtokentome.OutputType.ID, bos = False, eos = False)
             encoder_sequences = torch.LongTensor(encoder_sequences).unsqueeze(0)  # (1, source_sequence_length)
         else:
             encoder_sequences = source_sequence
-        encoder_sequences = encoder_sequences.to(DEVICE)  # (1, source_sequence_length)
-        encoder_sequence_lengths = torch.LongTensor([encoder_sequences.size(1)]).to(DEVICE)  # (1)
 
-        # Encode
-        encoder_sequences = model.encoder(encoder_sequences=encoder_sequences,
-                                          encoder_sequence_lengths=encoder_sequence_lengths)  # (1, source_sequence_length, d_model)
+        # (1, source_sequence_length)
+        encoder_sequences        = encoder_sequences.to(DEVICE)  
+        encoder_sequence_lengths = torch.LongTensor([encoder_sequences.size(1)]).to(DEVICE)
+
+        # (1, source_sequence_length, d_model)
+        encoder_sequences = model.encoder(
+            encoder_sequences        = encoder_sequences, 
+            encoder_sequence_lengths = encoder_sequence_lengths
+        )
 
         # Our hypothesis to begin with is just <BOS>
         hypotheses = torch.LongTensor([[bpe_model.subword_to_id('<BOS>')]]).to(DEVICE)  # (1, 1)
@@ -38,26 +46,26 @@ def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
         # Tensor to store hypotheses' scores; now it's just 0
         hypotheses_scores = torch.zeros(1).to(DEVICE)  # (1)
 
-        # Lists to store completed hypotheses and their scores
-        completed_hypotheses = list()
+        completed_hypotheses        = list()
         completed_hypotheses_scores = list()
 
-        # Start decoding
         step = 1
-
         # Assume "s" is the number of incomplete hypotheses currently in the bag; a number less than or equal to "k"
         # At this point, s is 1, because we only have 1 hypothesis to work with, i.e. "<BOS>"
         while True:
             s = hypotheses.size(0)
-            decoder_sequences = model.decoder(decoder_sequences=hypotheses,
-                                              decoder_sequence_lengths=hypotheses_lengths,
-                                              encoder_sequences=encoder_sequences.repeat(s, 1, 1),
-                                              encoder_sequence_lengths=encoder_sequence_lengths.repeat(
-                                                  s))  # (s, step, vocab_size)
+            
+            # (s, step, vocab_size)
+            decoder_sequences = model.decoder(
+                decoder_sequences        = hypotheses,
+                decoder_sequence_lengths = hypotheses_lengths,
+                encoder_sequences        = encoder_sequences.repeat(s, 1, 1),
+                encoder_sequence_lengths = encoder_sequence_lengths.repeat(s)
+            ) 
 
             # Scores at this step
-            scores = decoder_sequences[:, -1, :]  # (s, vocab_size)
-            scores = F.log_softmax(scores, dim=-1)  # (s, vocab_size)
+            scores = decoder_sequences[:, -1, :]      # (s, vocab_size)
+            scores = F.log_softmax(scores, dim = -1)  # (s, vocab_size)
 
             # Add hypotheses' scores from last step to scores at this step to get scores for all possible new hypotheses
             scores = hypotheses_scores.unsqueeze(1) + scores  # (s, vocab_size)
@@ -70,8 +78,7 @@ def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
             next_word_indices = unrolled_indices % vocab_size  # (k)
 
             # Construct the the new top k hypotheses from these indices
-            top_k_hypotheses = torch.cat([hypotheses[prev_word_indices], next_word_indices.unsqueeze(1)],
-                                         dim=1)  # (k, step + 1)
+            top_k_hypotheses = torch.cat([hypotheses[prev_word_indices], next_word_indices.unsqueeze(1)], dim=1)  # (k, step + 1)
 
             # Which of these new hypotheses are complete (reached <EOS>)?
             complete = next_word_indices == bpe_model.subword_to_id('<EOS>')  # (k), bool
@@ -95,6 +102,7 @@ def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
             # Stop if things have been going on for too long
             if step > 100:
                 break
+
             step += 1
 
         # If there is not a single completed hypothesis, use partial hypotheses
@@ -114,34 +122,48 @@ def translate(source_sequence, model, beam_size=4, length_norm_coefficient=0.6):
         return best_hypothesis, all_hypotheses
 
 if __name__ == "__main__":
-    import warnings
-    warnings.filterwarnings("ignore")
+    DEBUG        = 50
+    DATASET_TYPE = 'valid'
 
-    with open(PATH_TO_CLEANED_VALID[SRC_LANGUAGE], 'r') as src_file: valid_src_sentences = src_file.read().splitlines()
-    with open(PATH_TO_CLEANED_VALID[TGT_LANGUAGE], 'r') as tgt_file: valid_tgt_sentences = tgt_file.read().splitlines()
+    with open(PATH_TO_DATASET_FILES[DATASET_TYPE][SRC_LANGUAGE], "r", encoding = "utf-8") as src_file:
+        src_sentences = src_file.read().splitlines()
 
+    with open(PATH_TO_DATASET_FILES[DATASET_TYPE][TGT_LANGUAGE], "r", encoding = "utf-8") as tgt_file:
+        tgt_sentences = tgt_file.read().splitlines()
 
-    bpe_model = youtokentome.BPE(model = os.path.join(PATH_TO_DATASET, 'bpe_37000.model'))
+    if DEBUG is not None:
+        src_sentences = src_sentences[: DEBUG]
+        tgt_sentences = tgt_sentences[: DEBUG]
+
     model     = get_model(CFG).to(DEVICE)
+    bpe_model = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
-    checkpoint = torch.load("models/dataset-3/model-0/model_0_name_transformer_loss_7.33.pth")
-    model.load_state_dict(checkpoint['model'])
+    states = torch.load("models/dataset-3/adrian/model-0/model_0_name_transformer_loss_3.82.pth")
+    model.load_state_dict(states['model'])
     model.eval()
 
-    hypos = []
-    for sentence in valid_src_sentences:
-        hypos.append(translate(sentence)[0], model)
+    best_hypotheses = []
+    for sentence in tqdm(src_sentences, total = len(src_sentences)):
+        best_hypothesis, all_hypotheses = translate(sentence, model, bpe_model)
+        best_hypotheses.append(best_hypothesis)
 
-    for item, (predicted_sentence, label_sentence) in enumerate(zip(hypos, valid_tgt_sentences)):
+    for item, (predicted_sentence, reference_sentence) in enumerate(zip(best_hypotheses, tgt_sentences)):
         print("Predicted: ", predicted_sentence)
-        print("Correct: ",   label_sentence)
+        print('\n')
+        print("Reference: ", reference_sentence)
         print('\n\n\n')
-        if item == 15: break
 
-    hypothesis_corpus = hypos
-    references_corpus = valid_tgt_sentences
+    print('Cumulative 1-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (1, 0, 0, 0)) * 100))
+    print('Cumulative 2-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.5, 0.5, 0, 0)) * 100))
+    print('Cumulative 3-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.33, 0.33, 0.33, 0)) * 100))
+    print('Cumulative 4-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.25, 0.25, 0.25, 0.25)) * 100))
 
-    print('Cumulative 1-gram: {}'.format(corpus_bleu(references_corpus, hypothesis_corpus, weights = (1, 0, 0, 0)) * 100))
-    print('Cumulative 2-gram: {}'.format(corpus_bleu(references_corpus, hypothesis_corpus, weights = (0.5, 0.5, 0, 0)) * 100))
-    print('Cumulative 3-gram: {}'.format(corpus_bleu(references_corpus, hypothesis_corpus, weights = (0.33, 0.33, 0.33, 0)) * 100))
-    print('Cumulative 4-gram: {}'.format(corpus_bleu(references_corpus, hypothesis_corpus, weights = (0.25, 0.25, 0.25, 0.25)) * 100))
+    print("\n13a tokenization, cased:\n")
+    print(sacrebleu.corpus_bleu(best_hypotheses, [tgt_sentences]))
+    print("\n13a tokenization, caseless:\n")
+    print(sacrebleu.corpus_bleu(best_hypotheses, [tgt_sentences], lowercase=True))
+    print("\nInternational tokenization, cased:\n")
+    print(sacrebleu.corpus_bleu(best_hypotheses, [tgt_sentences], tokenize='intl'))
+    print("\nInternational tokenization, caseless:\n")
+    print(sacrebleu.corpus_bleu(best_hypotheses, [tgt_sentences], tokenize='intl', lowercase=True))
+    print("\n")

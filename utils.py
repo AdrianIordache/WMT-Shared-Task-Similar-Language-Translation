@@ -9,8 +9,10 @@ import time
 import string
 import random
 import pickle
+import argparse
 import datetime
 import tempfile
+import sacrebleu
 import linecache
 import youtokentome
 import numpy as np
@@ -47,7 +49,7 @@ from nltk.translate.bleu_score import corpus_bleu
 import warnings
 warnings.filterwarnings("ignore")
 
-DEVICE    = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class GlobalLogger:
     def __init__(self, path_to_global_logger: str, save_to_log: bool):
@@ -164,47 +166,6 @@ def seed_worker(worker_id):
     random.seed(SEED)
 
 
-def generate_batch(data_batch):
-    src_batch, tgt_batch = [], []
-        
-    for step, (src_encodings, tgt_encodings) in enumerate(data_batch):
-        src_batch.append(
-            torch.cat(
-                (torch.tensor([BOS_IDX]), src_encodings, torch.tensor([EOS_IDX])), dim = 0
-            )
-        )
-
-        tgt_batch.append(
-            torch.cat(
-                (torch.tensor([BOS_IDX]), tgt_encodings, torch.tensor([EOS_IDX])), dim = 0
-            )
-        )
-
-    src_batch = pad_sequence(src_batch, padding_value = PAD_IDX)
-    tgt_batch = pad_sequence(tgt_batch, padding_value = PAD_IDX)
-
-    return src_batch, tgt_batch
-
-
-def generate_square_subsequent_mask(sz):
-    mask = (torch.triu(torch.ones((sz, sz), device = DEVICE)) == 1).transpose(0, 1)
-    mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-    return mask
-
-
-def create_mask(src, tgt):
-    src_seq_len = src.shape[0]
-    tgt_seq_len = tgt.shape[0]
-
-    tgt_mask = generate_square_subsequent_mask(tgt_seq_len)
-    src_mask = torch.zeros((src_seq_len, src_seq_len), device = DEVICE).type(torch.bool)
-
-    src_padding_mask = (src == PAD_IDX).transpose(0, 1)
-    tgt_padding_mask = (tgt == PAD_IDX).transpose(0, 1)
-
-    return src_mask, tgt_mask, src_padding_mask, tgt_padding_mask
-
-
 def free_gpu_memory(device, object = None, verbose = False):
     if object == None:
         for object in gc.get_objects():
@@ -222,81 +183,6 @@ def free_gpu_memory(device, object = None, verbose = False):
     gc.collect()
     with torch.cuda.device(device):
         torch.cuda.empty_cache()
-
-def train_epoch(model, loader, optimizer, loss_fn, epoch, CFG, logger):
-    model.train()
-    losses_plot = []
-
-    losses      = AverageMeter()
-    start = end = time.time()
-
-    for step, (src, tgt) in enumerate(loader):
-        src = src.to(DEVICE)
-        tgt = tgt.to(DEVICE)
-
-        tgt_input = tgt[:-1, :]
-        src_mask, tgt_mask, src_padding_mask, tgt_padding_mask = create_mask(src, tgt_input)
-        
-        logits = model(src, tgt_input, src_mask, tgt_mask, src_padding_mask, tgt_padding_mask, src_padding_mask)
-        optimizer.zero_grad()
-
-        tgt_out = tgt[1:, :]
-        loss    = loss_fn(logits.reshape(-1, logits.shape[-1]), tgt_out.reshape(-1))
-        
-        loss.backward()
-        losses.update(loss.item(), CFG['batch_size_t'])
-        
-        optimizer.step()
-        end = time.time()
-
-        if step % CFG['print_freq'] == 0 or step == (len(loader) - 1):
-            logger.print('[GPU {0}][TRAIN] Epoch: [{1}][{2}/{3}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
-                  .format(DEVICE, epoch + 1, step, len(loader), 
-                    remain   = time_since(start, float(step + 1) / len(loader)), 
-                    loss     = losses)
-            )
-
-        losses_plot.append(losses.value)
-        if CFG['debug'] and step == 100: break
-
-    free_gpu_memory(DEVICE)
-    return losses.average, np.mean(losses_plot)
-
-
-def valid_epoch(model, loader, loss_fn, CFG, logger):
-    model.eval()
-
-    losses_plot = []
-    losses      = AverageMeter()
-    start = end = time.time()
-
-    for step, (src, tgt) in enumerate(loader):
-        src = src.to(DEVICE)
-        tgt = tgt.to(DEVICE)
-
-        tgt_input = tgt[:-1, :]
-        src_mask, tgt_mask, src_padding_mask, tgt_padding_mask = create_mask(src, tgt_input)
-
-        logits = model(src, tgt_input, src_mask, tgt_mask,src_padding_mask, tgt_padding_mask, src_padding_mask)
-
-        tgt_out = tgt[1:, :]
-        loss    = loss_fn(logits.reshape(-1, logits.shape[-1]), tgt_out.reshape(-1))
-
-        losses.update(loss.item(), CFG['batch_size_v'])
-        end = time.time()
-
-        if step % CFG['print_freq'] == 0 or step == (len(loader) - 1):
-            logger.print('[GPU {0}][VALID] Epoch: [{1}/{2}], Elapsed {remain:s}, Loss: {loss.value:.3f}({loss.average:.3f})'
-                  .format(DEVICE, step, len(loader), 
-                    remain   = time_since(start, float(step + 1) / len(loader)), 
-                    loss     = losses)
-            )
-
-        losses_plot.append(losses.value)
-        if CFG['debug'] and step == 100: break
-
-    free_gpu_memory(DEVICE)
-    return losses.average, np.mean(losses_plot)
 
 
 class CrossEntropyLossSmoothed(torch.nn.Module):
@@ -357,22 +243,6 @@ def get_positional_encoding(d_model: int, max_seq_len: int = 100):
 def get_lr(step, d_model, warmup_steps):
     lr = 2. * math.pow(d_model, -0.5) * min(math.pow(step, -0.5), step * math.pow(warmup_steps, -1.5))
     return lr
-
-
-def save_checkpoint(epoch, model, optimizer, prefix=''):
-    """
-    Checkpoint saver. Each save overwrites previous save.
-
-    :param epoch: epoch number (0-indexed)
-    :param model: transformer model
-    :param optimizer: optimized
-    :param prefix: checkpoint filename prefix
-    """
-    state = {'epoch': epoch,
-             'model': model,
-             'optimizer': optimizer}
-    filename = prefix + 'transformer_checkpoint.pth.tar'
-    torch.save(state, filename)
 
 
 def change_lr(optimizer, new_lr):

@@ -212,7 +212,7 @@ if __name__ == '__main__':
         )
 
         DATASET_LOGGER.append(
-            config_file = {'id': DATASET_VERSION},
+            config_file = {'id': DATASET_LOGGER.get_version_id()},
             output_file = {
                 'train_sources'       : DATASET_SOURCES,
                 'preprocessing_types' : PREPROCESSING_TYPES,

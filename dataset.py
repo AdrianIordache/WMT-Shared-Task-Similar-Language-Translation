@@ -33,17 +33,17 @@ class SequenceLoader(object):
         self.source_language = source_language
         self.target_language = target_language
 
-        assert dataset_type.lower() in ["train", "dev", "test"], \
-            "'split' must be in ['train', 'dev', 'test']"
+        assert dataset_type.lower() in ["train", "valid", "test"], \
+            "'split' must be in ['train', 'valid', 'test']"
         
         self.dataset_type   = dataset_type.lower()
         self.training_stage = self.dataset_type == "train"
-        self.bpe_model      = youtokentome.BPE(model = os.path.join(data_folder, f"bpe_{vocab_size}.model"))
+        self.bpe_model      = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
-        with open(os.path.join(data_folder, f'cleaned_{self.dataset_type}_filtered.{self.source_language}'), "r", encoding = "utf-8") as src_file:
+        with open(PATH_TO_DATASET_FILES[self.dataset_type][SRC_LANGUAGE], "r", encoding = "utf-8") as src_file:
             source_sentences = src_file.read().splitlines()
 
-        with open(os.path.join(data_folder, f'cleaned_{self.dataset_type}_filtered.{self.target_language}'), "r", encoding = "utf-8") as tgt_file:
+        with open(PATH_TO_DATASET_FILES[self.dataset_type][SRC_LANGUAGE], "r", encoding = "utf-8") as tgt_file:
             target_sentences = tgt_file.read().splitlines()
 
         assert len(source_sentences) == len(target_sentences), "[ERROR] Number of sentences mismatch"
@@ -58,10 +58,9 @@ class SequenceLoader(object):
         # If for training, pre-sort by target lengths - required for itertools.groupby() later
         if self.training_stage: self.data.sort(key = lambda sample: sample[3])
 
-        # Create batches
-        self.create_batches()
+        self.generate_batches()
 
-    def create_batches(self):
+    def generate_batches(self):
 
         if self.training_stage:
             # Group or chunk based on target sequence lengths

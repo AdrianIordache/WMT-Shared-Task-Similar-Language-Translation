@@ -3,7 +3,6 @@ from dataset import *
 from train import CFG
 from translate import translate
 
-import sacrebleu
 
 test_loader = SequenceLoader(
     data_folder     = PATH_TO_DATASET,

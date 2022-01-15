@@ -1,5 +1,10 @@
 from utils import *
 
+DATASET_VERSION = 3
+DATASET_LOGGER  = GlobalLogger(path_to_global_logger = f'data/cleaned/dataset_logger.csv', save_to_log = True)
+
+DECIMALS     = 4
+SEED         = 42
 SRC_LANGUAGE = 'es'
 TGT_LANGUAGE = 'ro'
 
@@ -10,8 +15,6 @@ PATH_TO_SOURCE_3   = os.path.join(PATH_TO_DATA, 'source-3')
 PATH_TO_SOURCE_4   = os.path.join(PATH_TO_DATA, 'source-4')
 PATH_TO_SOURCE_DEV = os.path.join(PATH_TO_DATA, 'source-dev')
 
-DATASET_LOGGER      = GlobalLogger(path_to_global_logger = f'data/cleaned/dataset_logger.csv', save_to_log = True)
-DATASET_VERSION     = DATASET_LOGGER.get_version_id() - 1
 IDENTIFIER          = LanguageIdentifier.from_modelstring(model, norm_probs = True)
 DATASET_SOURCES     = [1, 2, 3, 4]
 PREPROCESSING_TYPES = ['langid', 'lowercase', 'drop_duplicates']
@@ -19,24 +22,27 @@ PREPROCESSING_TYPES = ['langid', 'lowercase', 'drop_duplicates']
 PATH_TO_LOG       = os.path.join('logs', f'dataset-{DATASET_VERSION}')
 PATH_TO_MODELS    = os.path.join('models', f'dataset-{DATASET_VERSION}')
 PATH_TO_DATASET   = os.path.join('data', 'cleaned', f'dataset-{DATASET_VERSION}')
+PATH_TO_BPE_MODEL = f"bpe/dataset-{DATASET_VERSION}/bpe_37000.model"
 
-PATH_TO_CLEANED_TRAIN = {
-    SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.es'),
-    TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.ro')
-} 
+PATH_TO_DATASET_FILES = {
+	'train': {
+		SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.es'),
+		TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.ro')
+	},	 
 
-PATH_TO_CLEANED_VALID = {
-    SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_dev_filtered.es'),
-    TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_dev_filtered.ro')
-} 
+	'valid': {
+		SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'source-dev', 'dev.ro-es.es'),
+    	TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'source-dev', 'dev.ro-es.ro')
+	},
 
-UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
-SPECIAL_SYMBOLS = ['<unk>', '<pad>', '<bos>', '<eos>']
+	'test': {
+		SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'source-test', 'test.es-ro.es'),
+    	TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'source-test', 'test-ref.es-ro.ro')
+	}
+}
 
-DECIMALS  = 4
-SEED      = 42
-RD        = lambda x: np.round(x, DECIMALS)
-DEVICE    = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+RD     = lambda x: np.round(x, DECIMALS)
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 OUTPUT = {
     'train_loss': None,
@@ -48,3 +54,4 @@ OUTPUT = {
 }
 
 seed_everything(SEED)
+
