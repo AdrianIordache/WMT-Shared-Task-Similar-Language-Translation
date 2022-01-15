@@ -278,7 +278,7 @@ class MultiHeadAttention(nn.Module):
     The Multi-Head Attention sublayer.
     """
 
-    def __init__(self, d_model, n_heads, d_queries, d_values, dropout, in_decoder=False):
+    def __init__(self, d_model, n_heads, d_queries, d_values, dropout, in_decoder=False, device = DEVICE):
         """
         :param d_model: size of vectors throughout the transformer model, i.e. input and output sizes for this sublayer
         :param n_heads: number of heads in the multi-head attention
@@ -316,6 +316,8 @@ class MultiHeadAttention(nn.Module):
         # Dropout layer
         self.apply_dropout = nn.Dropout(dropout)
 
+        self.device = device
+    
     def forward(self, query_sequences, key_value_sequences, key_value_sequence_lengths):
         """
         Forward prop.
@@ -379,7 +381,7 @@ class MultiHeadAttention(nn.Module):
 
         # MASK 1: keys that are pads
         not_pad_in_keys = torch.LongTensor(range(key_value_sequence_pad_length)).unsqueeze(0).unsqueeze(0).expand_as(
-            attention_weights).to(DEVICE)  # (N * n_heads, query_sequence_pad_length, key_value_sequence_pad_length)
+            attention_weights).to(self.device)  # (N * n_heads, query_sequence_pad_length, key_value_sequence_pad_length)
         not_pad_in_keys = not_pad_in_keys < key_value_sequence_lengths.repeat_interleave(self.n_heads).unsqueeze(
             1).unsqueeze(2).expand_as(
             attention_weights)  # (N * n_heads, query_sequence_pad_length, key_value_sequence_pad_length)
@@ -395,7 +397,7 @@ class MultiHeadAttention(nn.Module):
             # torch.tril(), i.e. lower triangle in a 2D matrix, sets j > i to 0
             not_future_mask = torch.ones_like(
                 attention_weights).tril().bool().to(
-                DEVICE)  # (N * n_heads, query_sequence_pad_length, key_value_sequence_pad_length)
+                self.device)  # (N * n_heads, query_sequence_pad_length, key_value_sequence_pad_length)
 
             # Mask away by setting such weights to a large negative number, so that they evaluate to 0 under the softmax
             attention_weights = attention_weights.masked_fill(~not_future_mask, -float(
@@ -490,7 +492,7 @@ class Encoder(nn.Module):
     """
 
     def __init__(self, vocab_size, positional_encoding, d_model, n_heads, d_queries, d_values, d_inner, n_layers,
-                 dropout):
+                 dropout, device):
         """
         :param vocab_size: size of the (shared) vocabulary
         :param positional_encoding: positional encodings up to the maximum possible pad-length
@@ -513,6 +515,7 @@ class Encoder(nn.Module):
         self.d_inner = d_inner
         self.n_layers = n_layers
         self.dropout = dropout
+        self.device  = device
 
         # An embedding layer
         self.embedding = nn.Embedding(vocab_size, d_model)
@@ -539,7 +542,8 @@ class Encoder(nn.Module):
                                                           d_queries=self.d_queries,
                                                           d_values=self.d_values,
                                                           dropout=self.dropout,
-                                                          in_decoder=False),
+                                                          in_decoder=False,
+                                                          device = self.device),
                                        PositionWiseFCNetwork(d_model=self.d_model,
                                                              d_inner=self.d_inner,
                                                              dropout=self.dropout)])
@@ -559,7 +563,7 @@ class Encoder(nn.Module):
         # Sum vocab embeddings and position embeddings
         encoder_sequences = self.embedding(encoder_sequences) * math.sqrt(self.d_model) + self.positional_encoding[:,
                                                                                           :pad_length, :].to(
-            DEVICE)  # (N, pad_length, d_model)
+            self.device)  # (N, pad_length, d_model)
 
         # Dropout
         encoder_sequences = self.apply_dropout(encoder_sequences)  # (N, pad_length, d_model)
@@ -584,7 +588,7 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, vocab_size, positional_encoding, d_model, n_heads, d_queries, d_values, d_inner, n_layers,
-                 dropout):
+                 dropout, device):
         """
         :param vocab_size: size of the (shared) vocabulary
         :param positional_encoding: positional encodings up to the maximum possible pad-length
@@ -607,6 +611,7 @@ class Decoder(nn.Module):
         self.d_inner = d_inner
         self.n_layers = n_layers
         self.dropout = dropout
+        self.device  = device
 
         # An embedding layer
         self.embedding = nn.Embedding(vocab_size, d_model)
@@ -636,13 +641,15 @@ class Decoder(nn.Module):
                                                           d_queries=self.d_queries,
                                                           d_values=self.d_values,
                                                           dropout=self.dropout,
-                                                          in_decoder=True),
+                                                          in_decoder=True,
+                                                          device = self.device),
                                        MultiHeadAttention(d_model=self.d_model,
                                                           n_heads=self.n_heads,
                                                           d_queries=self.d_queries,
                                                           d_values=self.d_values,
                                                           dropout=self.dropout,
-                                                          in_decoder=True),
+                                                          in_decoder=True,
+                                                          device = self.device),
                                        PositionWiseFCNetwork(d_model=self.d_model,
                                                              d_inner=self.d_inner,
                                                              dropout=self.dropout)])
@@ -664,7 +671,7 @@ class Decoder(nn.Module):
         # Sum vocab embeddings and position embeddings
         decoder_sequences = self.embedding(decoder_sequences) * math.sqrt(self.d_model) + self.positional_encoding[:,
                                                                                           :pad_length, :].to(
-            DEVICE)  # (N, pad_length, d_model)
+            self.device)  # (N, pad_length, d_model)
 
         # Dropout
         decoder_sequences = self.apply_dropout(decoder_sequences)
@@ -693,7 +700,7 @@ class Transformer(nn.Module):
 
     def __init__(self, vocab_size: int, max_seq_len: int = 256, n_heads: int = 8,
         d_model: int = 512, d_queries: int = 64, d_values: int = 64, d_feed_forward: int = 2048, 
-        n_layers: int = 6, dropout: float = 0.1
+        n_layers: int = 6, dropout: float = 0.1, device = DEVICE
     ):
         super(Transformer, self).__init__()
         self.vocab_size     = vocab_size
@@ -705,11 +712,12 @@ class Transformer(nn.Module):
         self.d_feed_forward = d_feed_forward
         self.n_layers       = n_layers
         self.dropout        = dropout
+        self.device         = device
 
         self.positional_encoding = get_positional_encoding(
             d_model     = d_model, 
             max_seq_len = max_seq_len
-        )
+        ).to(self.device)
 
         self.encoder = Encoder(
             vocab_size          = self.vocab_size,
@@ -720,7 +728,8 @@ class Transformer(nn.Module):
             d_values            = self.d_values,
             d_inner             = self.d_feed_forward,
             n_layers            = self.n_layers,
-            dropout             = self.dropout
+            dropout             = self.dropout,
+            device              = self.device
         )
 
         self.decoder = Decoder(
@@ -732,7 +741,8 @@ class Transformer(nn.Module):
             d_values            = self.d_values,
             d_inner             = self.d_feed_forward,
             n_layers            = self.n_layers,
-            dropout             = self.dropout
+            dropout             = self.dropout,
+            device              = self.device
         )
 
         self.init_weights()
@@ -780,7 +790,8 @@ def get_model(CFG: Dict) -> nn.Module:
             d_values       = CFG['d_values'],
             d_feed_forward = CFG['d_feed_forward'],
             n_layers       = CFG['n_layers'],
-            dropout        = CFG['dropout']
+            dropout        = CFG['dropout'], 
+            device         = DEVICE
         )
     
     if CFG['architecture_type'].lower() == 'rnn':

@@ -135,7 +135,7 @@ if __name__ == "__main__":
         src_sentences = src_sentences[: DEBUG]
         tgt_sentences = tgt_sentences[: DEBUG]
 
-    model     = get_model(CFG).to(DEVICE)
+    model     = get_model(CFG, DEVICE).to(DEVICE)
     bpe_model = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
     states = torch.load("models/dataset-3/adrian/model-0/model_0_name_transformer_loss_3.82.pth")

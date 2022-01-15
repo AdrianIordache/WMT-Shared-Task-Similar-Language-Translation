@@ -169,7 +169,7 @@ if __name__ == "__main__":
         tokens_in_batch = CFG['tokens_in_batch']
     )
 
-    model = get_model(CFG).to(DEVICE)
+    model = get_model(CFG, DEVICE).to(DEVICE)
 
     optimizer  = torch.optim.Adam(
         params = [p for p in model.parameters() if p.requires_grad],
