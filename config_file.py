@@ -22,12 +22,14 @@ PREPROCESSING_TYPES = ['langid', 'lowercase', 'drop_duplicates']
 PATH_TO_LOG       = os.path.join('logs', f'dataset-{DATASET_VERSION}')
 PATH_TO_MODELS    = os.path.join('models', f'dataset-{DATASET_VERSION}')
 PATH_TO_DATASET   = os.path.join('data', 'cleaned', f'dataset-{DATASET_VERSION}')
-PATH_TO_BPE_MODEL = f"bpe/dataset-{DATASET_VERSION}/bpe_37000.model"
+
+VOCAB_SIZE        = 37000
+PATH_TO_BPE_MODEL = f"bpe/dataset-{DATASET_VERSION}/bpe_{VOCAB_SIZE}.model"
 
 PATH_TO_DATASET_FILES = {
 	'train': {
-		SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.es'),
-		TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', 'cleaned_train_filtered.ro')
+		SRC_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', f'cleaned_train_filtered_{VOCAB_SIZE}.es'),
+		TGT_LANGUAGE: os.path.join(PATH_TO_DATA, 'cleaned', f'dataset-{DATASET_VERSION}', f'cleaned_train_filtered_{VOCAB_SIZE}.ro')
 	},	 
 
 	'valid': {

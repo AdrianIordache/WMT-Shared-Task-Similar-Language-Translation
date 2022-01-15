@@ -30,7 +30,7 @@ CFG = {
     'eps'                             : 1e-9,
 
     # Vocabulary Hyper-parameters
-    'vocab_size'                      : 37000,
+    'vocab_size'                      : VOCAB_SIZE,      # see config_file.py
     'max_seq_len'                     : 256,             # transformer (needs to be computed)
 
     # Architecture Hyper-parameters

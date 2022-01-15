@@ -89,7 +89,7 @@ class Languages:
         return corpus
 
 class BPEModel:
-    def __init__(self, data_folder : str, vocab_size: int = 37000, min_length: int = 3, max_length : int = 100,  max_length_ratio : int = 1.5):
+    def __init__(self, data_folder: str, output_folder: str, vocab_size: int = 37000, min_length: int = 3, max_length : int = 100,  max_length_ratio : int = 1.5):
         with open(os.path.join(data_folder, f'cleaned_train.{SRC_LANGUAGE}'), "r", encoding = "utf-8") as src_file: src_sentences = src_file.read().splitlines()
         with open(os.path.join(data_folder, f'cleaned_train.{TGT_LANGUAGE}'), "r", encoding = "utf-8") as tgt_file: tgt_sentences = tgt_file.read().splitlines()
         
@@ -100,11 +100,11 @@ class BPEModel:
         youtokentome.BPE.train(
             data       = os.path.join(data_folder, f"cleaned_train.{SRC_LANGUAGE}-{TGT_LANGUAGE}"), 
             vocab_size = vocab_size,
-            model      = os.path.join(data_folder, f"bpe_{vocab_size}.model")
+            model      = os.path.join(output_folder, f"bpe_{vocab_size}.model")
         )
 
         print("\n\n\nLoading BPE model...")
-        bpe_model = youtokentome.BPE(model = os.path.join(data_folder, f"bpe_{vocab_size}.model"))
+        bpe_model = youtokentome.BPE(model = os.path.join(output_folder, f"bpe_{vocab_size}.model"))
 
         print("\n\n\nFiltering...")
         pairs = list()
@@ -127,9 +127,10 @@ class BPEModel:
         print(f"Final number of sentences: {len(src_sentences) - removed_counter}")
 
         src_sentences, tgt_sentences = zip(*pairs)
-        with open(os.path.join(data_folder, f"cleaned_train_filtered.{SRC_LANGUAGE}"), "w", encoding = "utf-8") as src_file: src_file.write("\n".join(src_sentences))
-        with open(os.path.join(data_folder, f"cleaned_train_filtered.{TGT_LANGUAGE}"), "w", encoding = "utf-8") as tgt_file: tgt_file.write("\n".join(tgt_sentences))
+        with open(os.path.join(data_folder, f"cleaned_train_filtered_{vocab_size}.{SRC_LANGUAGE}"), "w", encoding = "utf-8") as src_file: src_file.write("\n".join(src_sentences))
+        with open(os.path.join(data_folder, f"cleaned_train_filtered_{vocab_size}.{TGT_LANGUAGE}"), "w", encoding = "utf-8") as tgt_file: tgt_file.write("\n".join(tgt_sentences))
 
+        os.remove(os.path.join(data_folder, f"cleaned_train.{SRC_LANGUAGE}-{TGT_LANGUAGE}"))
 
 def read_source_one(path_to_source: str, languages: Languages) -> Languages:
     for language in [SRC_LANGUAGE, TGT_LANGUAGE]:
@@ -223,6 +224,7 @@ if __name__ == '__main__':
     if 0:
         bpe = BPEModel(
             data_folder      = PATH_TO_DATASET,
+            output_folder    = f'bpe/dataset-{DATASET_VERSION}/',
             vocab_size       = 37000,
             min_length       = 3,
             max_length       = 150,
