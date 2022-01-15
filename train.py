@@ -55,7 +55,7 @@ CFG = {
 
     'num_workers'                     : 4,
     'debug'                           : False, 
-    'print_freq'                      : 20, 
+    'print_freq'                      : 100, 
     'observation'                     : None, # "Should be a string, more specific information for experiments"
     'save_to_log'                     : SAVE_TO_LOG
 }
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         eps    = CFG['eps']
     )
 
-    loss_fn = CrossEntropyLossSmoothed(eps = CFG['label_smoothing']).to(DEVICE)
+    loss_fn = CrossEntropyLossSmoothed(eps = CFG['label_smoothing'], device = DEVICE).to(DEVICE)
     
     batches_per_step = 25000 // CFG['tokens_in_batch']
     epochs = (CFG['n_steps'] // (trainloader.n_batches // batches_per_step)) + 1

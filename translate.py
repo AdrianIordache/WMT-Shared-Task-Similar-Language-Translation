@@ -138,7 +138,7 @@ if __name__ == "__main__":
     model     = get_model(CFG, DEVICE).to(DEVICE)
     bpe_model = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
-    states = torch.load("models/dataset-3/adrian/model-0/model_0_name_transformer_loss_3.82.pth")
+    states = torch.load("models/dataset-3/adrian/model-0/model_0_name_transformer_loss_3.82.pth", map_location = torch.device('cpu'))
     model.load_state_dict(states['model'])
     model.eval()
 

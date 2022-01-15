@@ -776,7 +776,7 @@ class Transformer(nn.Module):
 
         return decoder_sequences
 
-def get_model(CFG: Dict) -> nn.Module:
+def get_model(CFG: Dict, DEVICE) -> nn.Module:
     assert CFG['architecture_type'].lower() in ['transformer', 'rnn'], \
         'Invalid architecture type. Options are: Transformer / RNN'
 
