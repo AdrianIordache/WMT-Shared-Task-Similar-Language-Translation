@@ -12,7 +12,7 @@ args = parser.parse_args()
 RANK = args.gpu
 
 USER        = 'adrian'
-QUIET       = False 
+QUIET       = True 
 SAVE_TO_LOG = True
 
 DEVICE = torch.device(f'cuda:{RANK}' if torch.cuda.is_available() else 'cpu')
@@ -50,13 +50,13 @@ CFG = {
     'decoder_dropout'                 : 0.5,             # rnn
 
     # Training Script Parameters
-    'n_steps'                         : 50000,
+    'n_steps'                         : 25000,
     'epochs'                          :'NA',
 
     'num_workers'                     : 4,
     'debug'                           : False, 
     'print_freq'                      : 100, 
-    'observation'                     : None, # "Should be a string, more specific information for experiments"
+    'observation'                     : None,            # "Should be a string, more specific information for experiments"
     'save_to_log'                     : SAVE_TO_LOG
 }
 

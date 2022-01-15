@@ -23,7 +23,7 @@ PATH_TO_LOG       = os.path.join('logs', f'dataset-{DATASET_VERSION}')
 PATH_TO_MODELS    = os.path.join('models', f'dataset-{DATASET_VERSION}')
 PATH_TO_DATASET   = os.path.join('data', 'cleaned', f'dataset-{DATASET_VERSION}')
 
-VOCAB_SIZE        = 37000
+VOCAB_SIZE        = 16000
 PATH_TO_BPE_MODEL = f"bpe/dataset-{DATASET_VERSION}/bpe_{VOCAB_SIZE}.model"
 
 PATH_TO_DATASET_FILES = {

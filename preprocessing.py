@@ -221,11 +221,11 @@ if __name__ == '__main__':
             }
         )
 
-    if 0:
+    if 1:
         bpe = BPEModel(
             data_folder      = PATH_TO_DATASET,
             output_folder    = f'bpe/dataset-{DATASET_VERSION}/',
-            vocab_size       = 37000,
+            vocab_size       = 16000,
             min_length       = 3,
             max_length       = 150,
             max_length_ratio = 2.
