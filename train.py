@@ -35,7 +35,7 @@ CFG = {
 
     # Architecture Hyper-parameters
     'architecture_type'               : 'transformer',
-    'd_model'                         : 256,             # transformer & rnn  (can also be considered as embeddings size)
+    'd_model'                         : 512,             # transformer & rnn  (can also be considered as embeddings size)
     'n_heads'                         : 8,               # transformer
     'd_queries'                       : 64,              # transformer
     'd_values'                        : 64,              # transformer

@@ -122,9 +122,9 @@ def translate(source_sequence, model, bpe_model, beam_size = 4, length_norm_coef
         return best_hypothesis, all_hypotheses
 
 if __name__ == "__main__":
-    DEBUG         = 10
+    DEBUG         = None
     DATASET_TYPE  = "test"
-    PATH_TO_MODEL = "models/dataset-3/adrian/gpu-0/model-3/model_3_name_transformer_loss_2.79.pth"
+    PATH_TO_MODEL = "models/dataset-3/adrian/gpu-1/model-2/model_2_name_transformer_loss_2.79.pth"
     PATH_TO_PREDS = "logs/predictions/"
 
     USER       = PATH_TO_MODEL.split("/")[2]
@@ -151,15 +151,15 @@ if __name__ == "__main__":
     model.eval()
 
     best_hypotheses = []
-    for sentence in tqdm(src_sentences, total = len(src_sentences)):
+    for sentence in src_sentences:
         best_hypothesis, all_hypotheses = translate(sentence, model, bpe_model)
         best_hypotheses.append(best_hypothesis)
 
-    for item, (predicted_sentence, reference_sentence) in enumerate(zip(best_hypotheses, tgt_sentences)):
-        print("Predicted: ", predicted_sentence)
-        print('\n')
-        print("Reference: ", reference_sentence)
-        print('\n\n\n')
+    #for item, (predicted_sentence, reference_sentence) in enumerate(zip(best_hypotheses, tgt_sentences)):
+    #    print("Predicted: ", predicted_sentence)
+    #    print('\n')
+    #    print("Reference: ", reference_sentence)
+    #    print('\n\n\n')
 
     with open(os.path.join(PATH_TO_PREDS, f'{DATASET_TYPE}_user_{USER}_gpu_{GPU}_{MODEL_NAME}.out'),'w') as file:
         file.write('\n'.join(best_hypotheses))
