@@ -11,8 +11,8 @@ parser.add_argument('--gpu',
 args = parser.parse_args()
 RANK = args.gpu
 
-USER        = 'andrei'
-QUIET       = False 
+USER        = 'adrian'
+QUIET       = True
 SAVE_TO_LOG = True
 
 DEVICE = torch.device(f'cuda:{RANK}' if torch.cuda.is_available() else 'cpu')
@@ -20,22 +20,22 @@ GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/dataset-{DATASET_VER
 
 CFG = {
     'id'                              : GLOBAL_LOGGER.get_version_id(),
-    'tokens_in_batch'                 : 1500,
+    'tokens_in_batch'                 : 9000,
     'label_smoothing'                 : 0.1,
 
     # Optimizer Hyper-parameters
-    'learning_rate'                   : get_lr(step = 1, d_model = 512, warmup_steps = 8000),
+    'learning_rate'                   : get_lr(step = 1, d_model = 128, warmup_steps = 8000),
     'warmup_steps'                    : 8000,
     'betas'                           : (0.9, 0.98),
     'eps'                             : 1e-9,
 
     # Vocabulary Hyper-parameters
     'vocab_size'                      : VOCAB_SIZE,      # see config_file.py
-    'max_seq_len'                     : 256,             # transformer (needs to be computed)
+    'max_seq_len'                     : 512,             # transformer (needs to be computed)
 
     # Architecture Hyper-parameters
     'architecture_type'               : 'transformer',
-    'd_model'                         : 128,             # transformer & rnn  (can also be considered as embeddings size)
+    'd_model'                         : 256,             # transformer & rnn  (can also be considered as embeddings size)
     'n_heads'                         : 8,               # transformer
     'd_queries'                       : 64,              # transformer
     'd_values'                        : 64,              # transformer

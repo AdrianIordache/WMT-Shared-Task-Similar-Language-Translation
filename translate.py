@@ -122,8 +122,8 @@ def translate(source_sequence, model, bpe_model, beam_size = 4, length_norm_coef
         return best_hypothesis, all_hypotheses
 
 if __name__ == "__main__":
-    DEBUG        = 50
-    DATASET_TYPE = 'valid'
+    DEBUG        = None
+    DATASET_TYPE = 'test'
 
     with open(PATH_TO_DATASET_FILES[DATASET_TYPE][SRC_LANGUAGE], "r", encoding = "utf-8") as src_file:
         src_sentences = src_file.read().splitlines()
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     model     = get_model(CFG, DEVICE).to(DEVICE)
     bpe_model = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
-    states = torch.load("models/dataset-3/adrian/gpu-1/model-0/model_0_name_transformer_loss_3.44.pth", map_location = torch.device('cpu'))
+    states = torch.load("models/dataset-3/adrian/gpu-0/model-3/model_3_name_transformer_loss_2.79.pth", map_location = torch.device('cpu'))
     model.load_state_dict(states['model'])
     model.eval()
 
