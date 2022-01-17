@@ -11,8 +11,8 @@ parser.add_argument('--gpu',
 args = parser.parse_args()
 RANK = args.gpu
 
-USER        = 'adrian'
-QUIET       = True 
+USER        = 'andrei'
+QUIET       = False 
 SAVE_TO_LOG = True
 
 DEVICE = torch.device(f'cuda:{RANK}' if torch.cuda.is_available() else 'cpu')
@@ -20,7 +20,7 @@ GLOBAL_LOGGER = GlobalLogger(path_to_global_logger = f'logs/dataset-{DATASET_VER
 
 CFG = {
     'id'                              : GLOBAL_LOGGER.get_version_id(),
-    'tokens_in_batch'                 : 4000,
+    'tokens_in_batch'                 : 1500,
     'label_smoothing'                 : 0.1,
 
     # Optimizer Hyper-parameters
@@ -35,13 +35,13 @@ CFG = {
 
     # Architecture Hyper-parameters
     'architecture_type'               : 'transformer',
-    'd_model'                         : 512,             # transformer & rnn  (can also be considered as embeddings size)
-    'n_heads'                         : 8,               # transformer
+    'd_model'                         : 1024,             # transformer & rnn  (can also be considered as embeddings size)
+    'n_heads'                         : 16,               # transformer
     'd_queries'                       : 64,              # transformer
     'd_values'                        : 64,              # transformer
-    'd_feed_forward'                  : 2048,            # transformer
+    'd_feed_forward'                  : 4096,            # transformer
     'n_layers'                        : 6,               # transformer
-    'dropout'                         : 0.1,             # transformer
+    'dropout'                         : 0.3,             # transformer
 
     'attention_dim'                   : 8,               # rnn
     'encoder_hidden_dim'              : 64,              # rnn
@@ -50,7 +50,7 @@ CFG = {
     'decoder_dropout'                 : 0.5,             # rnn
 
     # Training Script Parameters
-    'n_steps'                         : 25000,
+    'n_steps'                         : 20000,
     'epochs'                          :'NA',
 
     'num_workers'                     : 4,
