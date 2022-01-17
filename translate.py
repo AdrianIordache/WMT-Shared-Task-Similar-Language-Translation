@@ -122,13 +122,13 @@ def translate(source_sequence, model, bpe_model, beam_size = 4, length_norm_coef
         return best_hypothesis, all_hypotheses
 
 if __name__ == "__main__":
-    DEBUG         = None
+    DEBUG         = 10
     DATASET_TYPE  = "test"
     PATH_TO_MODEL = "models/dataset-3/adrian/gpu-0/model-3/model_3_name_transformer_loss_2.79.pth"
     PATH_TO_PREDS = "logs/predictions/"
 
     USER       = PATH_TO_MODEL.split("/")[2]
-    RANK       = PATH_TO_MODEL.split("/")[3].split("-")[-1]
+    GPU        = PATH_TO_MODEL.split("/")[3].split("-")[-1]
     MODEL_NAME = PATH_TO_MODEL.split("/")[-1][:-4]
 
     if os.path.isdir(PATH_TO_PREDS) == False: os.makedirs(PATH_TO_PREDS)
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         print("Reference: ", reference_sentence)
         print('\n\n\n')
 
-    with open(os.path.join(PATH_TO_PREDS, f'{DATASET_TYPE}_user_{USER}_gpu_{RANK}_{MODEL_NAME}'),'w') as file:
+    with open(os.path.join(PATH_TO_PREDS, f'{DATASET_TYPE}_user_{USER}_gpu_{GPU}_{MODEL_NAME}.out'),'w') as file:
         file.write('\n'.join(best_hypotheses))
 
     # print('Cumulative 1-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (1, 0, 0, 0)) * 100))
