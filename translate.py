@@ -122,8 +122,16 @@ def translate(source_sequence, model, bpe_model, beam_size = 4, length_norm_coef
         return best_hypothesis, all_hypotheses
 
 if __name__ == "__main__":
-    DEBUG        = None
-    DATASET_TYPE = 'test'
+    DEBUG         = None
+    DATASET_TYPE  = "test"
+    PATH_TO_MODEL = "models/dataset-3/adrian/gpu-0/model-3/model_3_name_transformer_loss_2.79.pth"
+    PATH_TO_PREDS = "logs/predictions/"
+
+    USER       = PATH_TO_MODEL.split("/")[2]
+    RANK       = PATH_TO_MODEL.split("/")[3].split("-")[-1]
+    MODEL_NAME = PATH_TO_MODEL.split("/")[-1][:-4]
+
+    if os.path.isdir(PATH_TO_PREDS) == False: os.makedirs(PATH_TO_PREDS)
 
     with open(PATH_TO_DATASET_FILES[DATASET_TYPE][SRC_LANGUAGE], "r", encoding = "utf-8") as src_file:
         src_sentences = src_file.read().splitlines()
@@ -138,7 +146,7 @@ if __name__ == "__main__":
     model     = get_model(CFG, DEVICE).to(DEVICE)
     bpe_model = youtokentome.BPE(model = PATH_TO_BPE_MODEL)
 
-    states = torch.load("models/dataset-3/adrian/gpu-0/model-3/model_3_name_transformer_loss_2.79.pth", map_location = torch.device('cpu'))
+    states = torch.load(PATH_TO_MODEL, map_location = torch.device('cpu'))
     model.load_state_dict(states['model'])
     model.eval()
 
@@ -153,10 +161,13 @@ if __name__ == "__main__":
         print("Reference: ", reference_sentence)
         print('\n\n\n')
 
-    print('Cumulative 1-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (1, 0, 0, 0)) * 100))
-    print('Cumulative 2-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.5, 0.5, 0, 0)) * 100))
-    print('Cumulative 3-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.33, 0.33, 0.33, 0)) * 100))
-    print('Cumulative 4-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.25, 0.25, 0.25, 0.25)) * 100))
+    with open(os.path.join(PATH_TO_PREDS, f'{DATASET_TYPE}_user_{USER}_gpu_{RANK}_{MODEL_NAME}'),'w') as file:
+        file.write('\n'.join(best_hypotheses))
+
+    # print('Cumulative 1-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (1, 0, 0, 0)) * 100))
+    # print('Cumulative 2-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.5, 0.5, 0, 0)) * 100))
+    # print('Cumulative 3-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.33, 0.33, 0.33, 0)) * 100))
+    # print('Cumulative 4-gram: {}'.format(corpus_bleu(tgt_sentences, best_hypotheses, weights = (0.25, 0.25, 0.25, 0.25)) * 100))
 
     print("\n13a tokenization, cased:\n")
     print(sacrebleu.corpus_bleu(best_hypotheses, [tgt_sentences]))
