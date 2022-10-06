@@ -5,6 +5,9 @@
 
 A more detailed description of the project and the obtained results can be found in the documentation paper.
 
+Based on this project, we graduated the courses of Natural Language Processing 2 and Machine Translation, in our 2nd semester of the Artificial Intelligence masters program at University of Bucharest. 
+Both evaluation committee graded 10/10.
+
 ### Models currently implemented
 - [x] Transformer models with Multi-Headed Attention (implemented from scratch)
 - [x] Recurrent Neural Networks with Attention
